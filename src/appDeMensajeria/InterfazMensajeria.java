@@ -11,14 +11,19 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-class InterfazMensajeria extends JFrame {
+class InterfazMensajeria extends JFrame implements InterfazVista {
     private UsuarioEmisor usuario;
     private DefaultListModel<String> modeloContactos;
     private JList<String> listaContactos;
     private JTextArea areaMensajes;
-    private JTextArea areaTextoMensaje;
-    private JTextField campoPuerto;
 
+	private JTextArea areaTextoMensaje;
+    private JTextField campoPuerto;
+    private JButton btnAgregarContacto;
+    private JButton btnConfiguracion;
+    private JButton botonEnviar;
+    
+    
     public InterfazMensajeria(UsuarioEmisor usuario) {
         this.usuario = usuario;
         setTitle("Sistema de Mensajería Instantánea");
@@ -43,15 +48,17 @@ class InterfazMensajeria extends JFrame {
         panelBotones.setBackground(Color.DARK_GRAY);
         panelBotones.setBorder(new LineBorder(Color.BLACK, 2)); // Borde negro
         
-        JButton btnAgregarContacto = new JButton("Agregar Contacto");
-        btnAgregarContacto.addActionListener(new ActionListener() {
+        btnAgregarContacto = new JButton("Agregar Contacto");
+        btnAgregarContacto.setActionCommand(ABRIRVENTAGREGARCONTACTO);
+        
+        /*btnAgregarContacto.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 abrirVentanaAgregarContacto();
             }
-        });
+        });*/
         
-        JButton btnConfiguracion = new JButton("Configuración");
+        btnConfiguracion = new JButton("Configuración");
         panelBotones.add(btnAgregarContacto);
         panelBotones.add(btnConfiguracion);
         
@@ -81,9 +88,11 @@ class InterfazMensajeria extends JFrame {
         panelInput.add(areaTextoMensaje, BorderLayout.CENTER);
 
         // Botón de enviar
-        JButton botonEnviar = new JButton("Enviar");
+        botonEnviar = new JButton("Enviar");
         botonEnviar.setPreferredSize(new Dimension(80, 30)); // Tamaño del botón
-        botonEnviar.addActionListener(new ActionListener() {
+        
+        botonEnviar.setActionCommand(ENVIARMENSAJE);
+        /*botonEnviar.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 String mensaje = areaTextoMensaje.getText();
@@ -98,7 +107,8 @@ class InterfazMensajeria extends JFrame {
                     }
                 }
             }
-        });
+        });*/
+        
         panelInput.add(botonEnviar, BorderLayout.EAST);
 
         panelMensajes.add(panelInput, BorderLayout.SOUTH);
@@ -133,6 +143,20 @@ class InterfazMensajeria extends JFrame {
             }
         }).start();
     }
+    
+    public void formarMensaje() {
+        String mensaje = areaTextoMensaje.getText();
+        if (!mensaje.isEmpty()) {
+            String contactoSeleccionado = listaContactos.getSelectedValue();
+            if (contactoSeleccionado != null) {
+                enviarMensaje(mensaje, contactoSeleccionado);
+                areaMensajes.append("Yo: " + mensaje + "\n");
+                areaTextoMensaje.setText("");
+            } else {
+                JOptionPane.showMessageDialog(InterfazMensajeria.this, "Por favor, selecciona un contacto.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
 
     private void enviarMensaje(String mensaje, String contacto) {
         try {
@@ -152,7 +176,7 @@ class InterfazMensajeria extends JFrame {
         }
     }
 
-    private void abrirVentanaAgregarContacto() {
+    public void abrirVentanaAgregarContacto() {
         JDialog dialog = new JDialog(this, "Nuevo Contacto", true);
         dialog.setLayout(new GridLayout(3, 2));
         dialog.setSize(300, 200);
@@ -184,5 +208,18 @@ class InterfazMensajeria extends JFrame {
         dialog.add(btnAgregar);
         
         dialog.setVisible(true);
+    }
+    
+    public JTextArea getAreaMensajes() {
+		return areaMensajes;
+	}
+
+	public void setAreaMensajes(JTextArea areaMensajes) {
+		this.areaMensajes = areaMensajes;
+	}
+    
+    public void setControlador(Controlador c) {
+    	botonEnviar.addActionListener(c);
+    	btnAgregarContacto.addActionListener(c);
     }
 }

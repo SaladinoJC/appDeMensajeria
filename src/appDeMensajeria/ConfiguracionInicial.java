@@ -51,7 +51,11 @@ public class ConfiguracionInicial extends JFrame {
 
         UsuarioEmisor usuario = new UsuarioEmisor(nickname, puerto);
         dispose();
-        SwingUtilities.invokeLater(() -> new InterfazMensajeria(usuario));
+        InterfazMensajeria vista = new InterfazMensajeria(usuario);
+        Controlador controlador = new Controlador(vista, usuario);
+        vista.setControlador(controlador);
+        vista.setVisible(true);
+        //SwingUtilities.invokeLater(() -> new InterfazMensajeria(usuario));
     }
 
     private boolean puertoDisponible(int puerto) {
