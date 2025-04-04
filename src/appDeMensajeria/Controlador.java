@@ -2,6 +2,9 @@ package appDeMensajeria;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -13,10 +16,11 @@ public class Controlador implements ActionListener {
 	public Controlador(InterfazMensajeria vistaPrincipal, UsuarioEmisor usuario) {
 		this.usuario = usuario;
 		this.vistaPrincipal = vistaPrincipal;
-		//iniciarServidor();
+		// Iniciar el servidor en un hilo separado
+		iniciarServidor();
 	}
 	
-	/*private void iniciarServidor() {
+	private void iniciarServidor() {
 	        new Thread(() -> {
 	            try {
 	                // Suponiendo que el puerto se obtiene de un contacto o se establece de alguna manera
@@ -27,13 +31,16 @@ public class Controlador implements ActionListener {
 	                while (true) {
 	                    Socket soc = serverSocket.accept();
 	                    this.vistaPrincipal.getAreaMensajes().append("Cliente conectado: " + soc.getInetAddress() + "\n");
-	                    new Thread(new ManejadorCliente(soc)).start();
+	                    ObjectInputStream input = new ObjectInputStream(soc.getInputStream());
+	                    Mensaje mensaje = (Mensaje) input.readObject();
+	                    this.vistaPrincipal.recibirMensaje(mensaje, soc);
+	                    //new Thread(new ManejadorCliente(soc)).start();
 	                }
 	            } catch (Exception e) {
 	                this.vistaPrincipal.getAreaMensajes().append("Error en el servidor: " + e.getMessage() + "\n");
 	            }
 	        }).start();
-	  }*/
+	  }
 
 	@Override
 	public void actionPerformed(ActionEvent e) {

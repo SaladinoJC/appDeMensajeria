@@ -1,8 +1,9 @@
 package appDeMensajeria;
+import java.io.Serializable;
 import java.util.*;
-public class Mensaje {
+public class Mensaje implements Serializable{
 	private String contenido;
-    private String remitente;
+	private String remitente;
     private Date timestamp;
 
     public Mensaje(String contenido, String remitente) {

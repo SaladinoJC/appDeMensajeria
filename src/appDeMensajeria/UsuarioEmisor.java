@@ -7,21 +7,29 @@ import java.util.*;
 public class UsuarioEmisor {
 	 private String nickname;
 	    private int puerto;
-	    private List<Contacto> contactos;
-	    private Map<String, Chat> conversaciones;
+	    private HashMap<String, Contacto> agenda;
+	    private HashMap<String, Chat> conversaciones;
 
-	    public UsuarioEmisor(String nickname, int puerto) {
+		public UsuarioEmisor(String nickname, int puerto) {
 	        this.nickname = nickname;
 	        this.puerto = puerto;
-	        this.contactos = new ArrayList<>();
+	        this.agenda = new HashMap<>();
 	        this.conversaciones = new HashMap<>();
 	    }
 
 	    public void agregarContacto(Contacto contacto) {
-	        contactos.add(contacto);
+	    	agenda.put(contacto.getNombre(),contacto);
+	    }
+	    
+	    public void agregarChat(Chat chat) {
+	    	conversaciones.put(chat.getContacto().getNombre(), chat);
+	    }
+	    
+	    public void agregarMensaje(Mensaje mensaje, String contactoDestino) {
+	    	conversaciones.get(contactoDestino).agregarMensaje(mensaje);
 	    }
 
-	    public void iniciarConversacion(String nombreContacto) {
+	    /*public void iniciarConversacion(String nombreContacto) {
 	        for (Contacto c : contactos) {
 	            if (c.getNombre().equals(nombreContacto)) {
 	                conversaciones.put(nombreContacto, new Chat(c));
@@ -46,8 +54,16 @@ public class UsuarioEmisor {
 	        } catch (IOException e) {
 	            System.out.println("Error al enviar mensaje a " + contacto.getNombre());
 	        }
-	    }
+	    }*/
 
+	    public HashMap<String, Chat> getConversaciones() {
+			return conversaciones;
+		}
+	    
+	    public HashMap<String, Contacto> getAgenda() {
+			return agenda;
+		}
+	    
 		public String getNickname() {
 			return nickname;
 		}
@@ -67,6 +83,10 @@ public class UsuarioEmisor {
 		@Override
 		public String toString() {
 			return  nickname + ", puerto = " + puerto;
+		}
+
+		public Contacto buscaContacto(String contacto) {
+			return this.agenda.get(contacto);
 		}
 	    
 }

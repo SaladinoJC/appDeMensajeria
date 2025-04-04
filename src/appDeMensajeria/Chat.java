@@ -2,17 +2,18 @@ package appDeMensajeria;
 import java.util.*;
 public class Chat {
 	private Contacto contacto;
-    private List<Mensaje> mensajes;
+    private LinkedList<Mensaje> mensajes;
 
     public Chat(Contacto contacto) {
         this.contacto = contacto;
-        this.mensajes = new ArrayList<>();
+        this.mensajes = new LinkedList<>();
     }
 
     public void agregarMensaje(Mensaje mensaje) {
-        mensajes.add(mensaje);
+        mensajes.addLast(mensaje);;
     }
-
-    public List<Mensaje> getMensajes() { return mensajes; }
+    
+    
+    public LinkedList<Mensaje> getMensajes() { return mensajes; }
     public Contacto getContacto() { return contacto; }
 }

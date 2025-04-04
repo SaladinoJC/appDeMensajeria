@@ -10,6 +10,7 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.MessageDigest;
 
 class InterfazMensajeria extends JFrame implements InterfazVista {
     private UsuarioEmisor usuario;
@@ -122,10 +123,10 @@ class InterfazMensajeria extends JFrame implements InterfazVista {
         setVisible(true);
 
         // Iniciar el servidor en un hilo separado
-        iniciarServidor();
+       // iniciarServidor();
     }
 
-    private void iniciarServidor() {
+   /* private void iniciarServidor() {
         new Thread(() -> {
             try {
                 // Suponiendo que el puerto se obtiene de un contacto o se establece de alguna manera
@@ -142,35 +143,51 @@ class InterfazMensajeria extends JFrame implements InterfazVista {
                 areaMensajes.append("Error en el servidor: " + e.getMessage() + "\n");
             }
         }).start();
-    }
+    }*/
     
     public void formarMensaje() {
-        String mensaje = areaTextoMensaje.getText();
-        if (!mensaje.isEmpty()) {
+        String contenido = areaTextoMensaje.getText();
+        if (!contenido.isEmpty()) {
             String contactoSeleccionado = listaContactos.getSelectedValue();
             if (contactoSeleccionado != null) {
-                enviarMensaje(mensaje, contactoSeleccionado);
-                areaMensajes.append("Yo: " + mensaje + "\n");
+                enviarMensaje(contenido, contactoSeleccionado);
+                areaMensajes.append("Yo: " + contenido + "\n");
                 areaTextoMensaje.setText("");
             } else {
                 JOptionPane.showMessageDialog(InterfazMensajeria.this, "Por favor, selecciona un contacto.", "Error", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
+    
+    
+    public void recibirMensaje(Mensaje mensaje, Socket soc) {
+    	if(listaContactos.getSelectedValue() == mensaje.getRemitente()) {
+    		// se debe agregar el mensaje al chat
+    	}
+    	else {
+    		Contacto contactoDestino = usuario.buscaContacto(mensaje.getRemitente());
+    		// se debe agregar el nuevo contacto a la lista de conversaciones iniciadas y marcarlo como no leido
+    	}
+    }
 
-    private void enviarMensaje(String mensaje, String contacto) {
+    private void enviarMensaje(String contenidoMensaje, String contacto) {
         try {
+        	/*
             // Suponiendo que el formato del contacto es "Nombre (IP: 127.0.0.1, Puerto: 12345)"
             String[] partes = contacto.split(" \\(IP: |, Puerto: ");
             String nombre = partes[0];
             String ip = partes[1];
             int puerto = Integer.parseInt(partes[2].replace(")", ""));
-
-            Socket socket = new Socket(ip, puerto);
+			*/
+        	
+        	Contacto contactoDestino = usuario.buscaContacto(contacto);
+        	Mensaje mensaje = new Mensaje(contenidoMensaje, usuario.getNickname());
+            Socket socket = new Socket(contactoDestino.getDireccionIP(), contactoDestino.getPuerto());
             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
             out.println(mensaje);
             out.close();
             socket.close();
+            usuario.agregarMensaje(mensaje, contacto);
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Error al enviar el mensaje: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -185,6 +202,8 @@ class InterfazMensajeria extends JFrame implements InterfazVista {
         JTextField campoNombre = new JTextField();
         JLabel labelPuerto = new JLabel("Número de Puerto de Comunicación:");
         JTextField campoPuerto = new JTextField();
+        JLabel labelID = new JLabel("Dirección IP:");
+        JTextField campoIP = new JTextField();
         
         JButton btnAgregar = new JButton("Agregar Contacto");
         btnAgregar.addActionListener(new ActionListener() {
@@ -192,8 +211,14 @@ class InterfazMensajeria extends JFrame implements InterfazVista {
             public void actionPerformed(ActionEvent e) {
                 String nombre = campoNombre.getText();
                 String puerto = campoPuerto.getText();
-                if (!nombre.isEmpty() && !puerto.isEmpty()) {
-                    modeloContactos.addElement(nombre + " (IP: 127.0.0.1, Puerto: " + puerto + ")");
+                String IP = campoIP.getText();
+                if (!nombre.isEmpty() && !puerto.isEmpty() && !IP.isEmpty()) {
+                    //modeloContactos.addElement(nombre + " (IP: 127.0.0.1, Puerto: " + puerto + ")");
+                	Contacto nuevoContacto = new Contacto(nombre, IP,Integer.parseInt(puerto));
+                	Chat nuevoChat = new Chat(nuevoContacto);
+                	usuario.agregarChat(nuevoChat);
+                	usuario.agregarContacto(nuevoContacto);
+                    modeloContactos.addElement(nombre);
                     dialog.dispose();
                 } else {
                     JOptionPane.showMessageDialog(dialog, "Por favor, complete todos los campos.", "Error", JOptionPane.ERROR_MESSAGE);
@@ -205,6 +230,8 @@ class InterfazMensajeria extends JFrame implements InterfazVista {
         dialog.add(campoNombre);
         dialog.add(labelPuerto);
         dialog.add(campoPuerto);
+        dialog.add(labelID);
+        dialog.add(campoIP);
         dialog.add(btnAgregar);
         
         dialog.setVisible(true);
