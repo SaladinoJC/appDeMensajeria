@@ -3,113 +3,107 @@ package appDeMensajeria;
 import javax.swing.*;
 import javax.swing.border.LineBorder;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.ServerSocket;
+import java.awt.event.*;
+import java.io.BufferedInputStream;
+import java.io.InputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.security.MessageDigest;
+import java.net.URL;
 
-class InterfazMensajeria extends JFrame implements InterfazVista {
+import javax.sound.sampled.*;
+
+public class InterfazMensajeria extends JFrame implements InterfazVista {
     private UsuarioEmisor usuario;
     private DefaultListModel<String> modeloContactos;
     private JList<String> listaContactos;
     private JTextArea areaMensajes;
-
-	private JTextArea areaTextoMensaje;
+    private JTextArea areaTextoMensaje;
     private JTextField campoPuerto;
     private JButton btnAgregarContacto;
     private JButton btnConfiguracion;
     private JButton botonEnviar;
-    
-    
+
     public InterfazMensajeria(UsuarioEmisor usuario) {
         this.usuario = usuario;
-        setTitle("Sistema de Mensajería Instantánea");
+        setTitle(usuario.getNickname() + " - Puerto " + usuario.getPuerto());
         setSize(600, 400);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
         // Panel de contactos
-        JPanel panelContactos = new JPanel();
-        panelContactos.setLayout(new BorderLayout());
+        JPanel panelContactos = new JPanel(new BorderLayout());
         panelContactos.setBackground(Color.DARK_GRAY);
-        panelContactos.setBorder(new LineBorder(Color.BLACK, 2)); // Borde negro
+        panelContactos.setBorder(new LineBorder(Color.BLACK, 2));
 
         modeloContactos = new DefaultListModel<>();
         listaContactos = new JList<>(modeloContactos);
         listaContactos.setBackground(Color.LIGHT_GRAY);
         panelContactos.add(new JScrollPane(listaContactos), BorderLayout.CENTER);
-        
-        // Panel para botones de acción
-        JPanel panelBotones = new JPanel();
-        panelBotones.setLayout(new GridLayout(2, 1));
+
+        // Click en contacto → mostrar mensajes
+        listaContactos.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                String seleccionado = listaContactos.getSelectedValue();
+                if (seleccionado != null) {
+                    String nombreLimpio = seleccionado.replace(" (nuevo)", "");
+                 // Limpiar el (nuevo) del modelo visual si está presente
+                    if (seleccionado.endsWith(" (nuevo)")) {
+                        int index = modeloContactos.indexOf(seleccionado);
+                        if (index != -1) {
+                            modeloContactos.set(index, nombreLimpio);
+                        }
+                    }
+                    Chat chat = usuario.buscaChat(nombreLimpio);
+                    areaMensajes.setText("");
+                    if (chat != null) {
+                        for (Mensaje m : chat.getMensajes()) {
+                            areaMensajes.append(m.getRemitente() + ": " + m.getContenido() + "\n");
+                        }
+                    }
+                }
+            }
+        });
+
+        // Panel botones
+        JPanel panelBotones = new JPanel(new GridLayout(2, 1));
         panelBotones.setBackground(Color.DARK_GRAY);
-        panelBotones.setBorder(new LineBorder(Color.BLACK, 2)); // Borde negro
-        
+        panelBotones.setBorder(new LineBorder(Color.BLACK, 2));
+
         btnAgregarContacto = new JButton("Agregar Contacto");
         btnAgregarContacto.setActionCommand(ABRIRVENTAGREGARCONTACTO);
-        
-        /*btnAgregarContacto.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                abrirVentanaAgregarContacto();
-            }
-        });*/
-        
+
         btnConfiguracion = new JButton("Configuración");
+        btnConfiguracion.addActionListener(e -> {
+            VentanaConfiguracion config = new VentanaConfiguracion(this, usuario);
+            config.setVisible(true);
+        });
+
         panelBotones.add(btnAgregarContacto);
         panelBotones.add(btnConfiguracion);
-        
-        // Agregar panel de botones al panel de contactos
         panelContactos.add(panelBotones, BorderLayout.SOUTH);
 
-        // Panel de mensajes
-        JPanel panelMensajes = new JPanel();
-        panelMensajes.setLayout(new BorderLayout());
+        // Panel mensajes
+        JPanel panelMensajes = new JPanel(new BorderLayout());
         panelMensajes.setBackground(Color.DARK_GRAY);
-        panelMensajes.setBorder(new LineBorder(Color.BLACK, 2)); // Borde negro
+        panelMensajes.setBorder(new LineBorder(Color.BLACK, 2));
 
         areaMensajes = new JTextArea();
         areaMensajes.setEditable(false);
         areaMensajes.setBackground(Color.LIGHT_GRAY);
         panelMensajes.add(new JScrollPane(areaMensajes), BorderLayout.CENTER);
 
-        // Área de texto para el nuevo mensaje
         areaTextoMensaje = new JTextArea(3, 20);
         areaTextoMensaje.setBackground(Color.LIGHT_GRAY);
-        
-        // Panel para el área de texto y el botón de enviar
-        JPanel panelInput = new JPanel();
-        panelInput.setLayout(new BorderLayout());
+
+        JPanel panelInput = new JPanel(new BorderLayout());
         panelInput.setBackground(Color.DARK_GRAY);
-        panelInput.setBorder(new LineBorder(Color.BLACK, 2)); // Borde negro
+        panelInput.setBorder(new LineBorder(Color.BLACK, 2));
         panelInput.add(areaTextoMensaje, BorderLayout.CENTER);
 
-        // Botón de enviar
         botonEnviar = new JButton("Enviar");
-        botonEnviar.setPreferredSize(new Dimension(80, 30)); // Tamaño del botón
-        
+        botonEnviar.setPreferredSize(new Dimension(80, 30));
         botonEnviar.setActionCommand(ENVIARMENSAJE);
-        /*botonEnviar.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String mensaje = areaTextoMensaje.getText();
-                if (!mensaje.isEmpty()) {
-                    String contactoSeleccionado = listaContactos.getSelectedValue();
-                    if (contactoSeleccionado != null) {
-                        enviarMensaje(mensaje, contactoSeleccionado);
-                        areaMensajes.append("Yo: " + mensaje + "\n");
-                        areaTextoMensaje.setText("");
-                    } else {
-                        JOptionPane.showMessageDialog(InterfazMensajeria.this, "Por favor, selecciona un contacto.", "Error", JOptionPane.ERROR_MESSAGE);
-                    }
-                }
-            }
-        });*/
-        
         panelInput.add(botonEnviar, BorderLayout.EAST);
 
         panelMensajes.add(panelInput, BorderLayout.SOUTH);
@@ -118,75 +112,79 @@ class InterfazMensajeria extends JFrame implements InterfazVista {
         add(panelContactos, BorderLayout.WEST);
         add(panelMensajes, BorderLayout.CENTER);
 
-        // Estilo de la ventana
         getContentPane().setBackground(Color.DARK_GRAY);
         setVisible(true);
-
-        // Iniciar el servidor en un hilo separado
-       // iniciarServidor();
     }
 
-   /* private void iniciarServidor() {
-        new Thread(() -> {
-            try {
-                // Suponiendo que el puerto se obtiene de un contacto o se establece de alguna manera
-                int puerto = usuario.getPuerto(); // Cambia esto según sea necesario
-                ServerSocket serverSocket = new ServerSocket(puerto);
-                areaMensajes.append("Esperando conexiones en el puerto " + puerto + "\n");
-
-                while (true) {
-                    Socket soc = serverSocket.accept();
-                    areaMensajes.append("Cliente conectado: " + soc.getInetAddress() + "\n");
-                    new Thread(new ManejadorCliente(soc)).start();
-                }
-            } catch (Exception e) {
-                areaMensajes.append("Error en el servidor: " + e.getMessage() + "\n");
-            }
-        }).start();
-    }*/
-    
     public void formarMensaje() {
         String contenido = areaTextoMensaje.getText();
         if (!contenido.isEmpty()) {
             String contactoSeleccionado = listaContactos.getSelectedValue();
             if (contactoSeleccionado != null) {
+                contactoSeleccionado = contactoSeleccionado.replace(" (nuevo)", "");
                 enviarMensaje(contenido, contactoSeleccionado);
                 areaMensajes.append("Yo: " + contenido + "\n");
                 areaTextoMensaje.setText("");
             } else {
-                JOptionPane.showMessageDialog(InterfazMensajeria.this, "Por favor, selecciona un contacto.", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Por favor, selecciona un contacto.", "Error", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
-    
-    
+
     public void recibirMensaje(Mensaje mensaje, Socket soc) {
-    	if(listaContactos.getSelectedValue() == mensaje.getRemitente()) {
-    		// se debe agregar el mensaje al chat
-    	}
-    	else {
-    		Contacto contactoDestino = usuario.buscaContacto(mensaje.getRemitente());
-    		// se debe agregar el nuevo contacto a la lista de conversaciones iniciadas y marcarlo como no leido
-    	}
+        String remitente = mensaje.getRemitente();
+        String contactoSeleccionado = listaContactos.getSelectedValue();
+
+        Contacto contacto = usuario.buscaContacto(remitente);
+        if (contacto == null) {
+            String ip = soc.getInetAddress().getHostAddress();
+            int puerto = mensaje.getPuertoRemitente();
+            contacto = new Contacto(remitente, ip, puerto);
+            usuario.agregarContacto(contacto);
+        }
+
+        Chat chat = usuario.buscaChat(remitente);
+        if (chat == null) {
+            chat = new Chat(contacto);
+            usuario.agregarChat(chat);
+        }
+
+        usuario.agregarMensaje(mensaje, remitente);
+
+        if (contactoSeleccionado != null && contactoSeleccionado.replace(" (nuevo)", "").equals(remitente)) {
+            areaMensajes.append(remitente + ": " + mensaje.getContenido() + "\n");
+            
+        } else {
+        	reproducirSonido(); // Usá la ruta relativa dentro del .jar
+            boolean encontrado = false;
+            for (int i = 0; i < modeloContactos.size(); i++) {
+                String nombreLista = modeloContactos.get(i);
+                if (nombreLista.startsWith(remitente)) {
+                    if (!nombreLista.contains("(nuevo)")) {
+                        modeloContactos.set(i, remitente + " (nuevo)");
+                    }
+                    encontrado = true;
+                    break;
+                }
+            }
+            if (!encontrado) {
+                modeloContactos.addElement(remitente + " (nuevo)");
+            }
+        }
     }
 
     private void enviarMensaje(String contenidoMensaje, String contacto) {
         try {
-        	/*
-            // Suponiendo que el formato del contacto es "Nombre (IP: 127.0.0.1, Puerto: 12345)"
-            String[] partes = contacto.split(" \\(IP: |, Puerto: ");
-            String nombre = partes[0];
-            String ip = partes[1];
-            int puerto = Integer.parseInt(partes[2].replace(")", ""));
-			*/
-        	
-        	Contacto contactoDestino = usuario.buscaContacto(contacto);
-        	Mensaje mensaje = new Mensaje(contenidoMensaje, usuario.getNickname());
+            Contacto contactoDestino = usuario.buscaContacto(contacto);
+            Mensaje mensaje = new Mensaje(contenidoMensaje, usuario.getNickname(), usuario.getPuerto());
+
             Socket socket = new Socket(contactoDestino.getDireccionIP(), contactoDestino.getPuerto());
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-            out.println(mensaje);
+            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+            out.flush();
+            out.writeObject(mensaje);
             out.close();
             socket.close();
+
             usuario.agregarMensaje(mensaje, contacto);
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Error al enviar el mensaje: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -195,58 +193,131 @@ class InterfazMensajeria extends JFrame implements InterfazVista {
 
     public void abrirVentanaAgregarContacto() {
         JDialog dialog = new JDialog(this, "Nuevo Contacto", true);
-        dialog.setLayout(new GridLayout(3, 2));
-        dialog.setSize(300, 200);
-        
-        JLabel labelNombre = new JLabel("Nombre/Alias:");
-        JTextField campoNombre = new JTextField();
-        JLabel labelPuerto = new JLabel("Número de Puerto de Comunicación:");
-        JTextField campoPuerto = new JTextField();
-        JLabel labelID = new JLabel("Dirección IP:");
-        JTextField campoIP = new JTextField();
-        
+        dialog.setSize(400, 220);
+        dialog.setLocationRelativeTo(this);
+        dialog.setLayout(new BorderLayout());
+
+        JPanel panelCampos = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 10, 5, 10);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+
+        JLabel labelNombre = new JLabel("Nombre / Alias:");
+        JTextField campoNombre = new JTextField(20);
+        JLabel labelPuerto = new JLabel("Número de Puerto:");
+        JTextField campoPuerto = new JTextField(20);
+        JLabel labelIP = new JLabel("Dirección IP:");
+        JTextField campoIP = new JTextField(20);
+
+        panelCampos.add(labelNombre, gbc);
+        gbc.gridx = 1;
+        panelCampos.add(campoNombre, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        panelCampos.add(labelPuerto, gbc);
+        gbc.gridx = 1;
+        panelCampos.add(campoPuerto, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        panelCampos.add(labelIP, gbc);
+        gbc.gridx = 1;
+        panelCampos.add(campoIP, gbc);
+
         JButton btnAgregar = new JButton("Agregar Contacto");
-        btnAgregar.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String nombre = campoNombre.getText();
-                String puerto = campoPuerto.getText();
-                String IP = campoIP.getText();
-                if (!nombre.isEmpty() && !puerto.isEmpty() && !IP.isEmpty()) {
-                    //modeloContactos.addElement(nombre + " (IP: 127.0.0.1, Puerto: " + puerto + ")");
-                	Contacto nuevoContacto = new Contacto(nombre, IP,Integer.parseInt(puerto));
-                	Chat nuevoChat = new Chat(nuevoContacto);
-                	usuario.agregarChat(nuevoChat);
-                	usuario.agregarContacto(nuevoContacto);
+        btnAgregar.addActionListener(e -> {
+            String nombre = campoNombre.getText();
+            String puerto = campoPuerto.getText();
+            String ip = campoIP.getText();
+
+            if (!nombre.isEmpty() && !puerto.isEmpty() && !ip.isEmpty()) {
+                try {
+                    int puertoInt = Integer.parseInt(puerto);
+                 // Verificar si el contacto ya existe por nombre
+                    Contacto existentePorNombre = usuario.buscaContacto(nombre);
+                    if (existentePorNombre != null) {
+                        JOptionPane.showMessageDialog(dialog,
+                            "Ya existe un contacto con ese nombre.",
+                            "Contacto duplicado",
+                            JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+
+                    // Verificar si ya existe un contacto con esa IP y puerto
+                    boolean existePorIpYPuerto = false;
+                    for (Contacto c : usuario.getAgenda().values()) {
+                        if (c.getDireccionIP().equals(ip) && c.getPuerto() == puertoInt) {
+                            existePorIpYPuerto = true;
+                            break;
+                        }
+                    }
+
+                    if (existePorIpYPuerto) {
+                        JOptionPane.showMessageDialog(dialog,
+                            "Ya existe un contacto con esa IP y puerto.",
+                            "Contacto duplicado",
+                            JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                    Contacto nuevoContacto = new Contacto(nombre, ip, puertoInt);
+                    Chat nuevoChat = new Chat(nuevoContacto);
+                    usuario.agregarChat(nuevoChat);
+                    usuario.agregarContacto(nuevoContacto);
                     modeloContactos.addElement(nombre);
                     dialog.dispose();
-                } else {
-                    JOptionPane.showMessageDialog(dialog, "Por favor, complete todos los campos.", "Error", JOptionPane.ERROR_MESSAGE);
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(dialog, "El puerto debe ser un número entero.", "Error", JOptionPane.ERROR_MESSAGE);
                 }
+            } else {
+                JOptionPane.showMessageDialog(dialog, "Por favor, complete todos los campos.", "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
 
-        dialog.add(labelNombre);
-        dialog.add(campoNombre);
-        dialog.add(labelPuerto);
-        dialog.add(campoPuerto);
-        dialog.add(labelID);
-        dialog.add(campoIP);
-        dialog.add(btnAgregar);
-        
+        JPanel panelBoton = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        panelBoton.add(btnAgregar);
+
+        dialog.add(panelCampos, BorderLayout.CENTER);
+        dialog.add(panelBoton, BorderLayout.SOUTH);
+        dialog.setResizable(false);
         dialog.setVisible(true);
     }
-    
-    public JTextArea getAreaMensajes() {
-		return areaMensajes;
-	}
 
-	public void setAreaMensajes(JTextArea areaMensajes) {
-		this.areaMensajes = areaMensajes;
-	}
+    public JTextArea getAreaMensajes() {
+        return areaMensajes;
+    }
     
+    public void reproducirSonido() {
+        try {
+            URL sonidoURL = getClass().getClassLoader().getResource("sonido.wav");
+            if (sonidoURL == null) {
+                System.out.println("Archivo de sonido no encontrado");
+                return;
+            }
+
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(sonidoURL);
+            Clip clip = AudioSystem.getClip();
+            clip.open(audioStream);
+
+            // Volumen al 50% (aproximadamente -6 dB)
+            FloatControl volume = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+            volume.setValue(-6.0f);
+
+            clip.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    public void setAreaMensajes(JTextArea areaMensajes) {
+        this.areaMensajes = areaMensajes;
+    }
+
     public void setControlador(Controlador c) {
-    	botonEnviar.addActionListener(c);
-    	btnAgregarContacto.addActionListener(c);
+        botonEnviar.addActionListener(c);
+        btnAgregarContacto.addActionListener(c);
     }
 }

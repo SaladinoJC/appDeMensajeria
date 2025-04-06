@@ -17,7 +17,7 @@ class ManejadorCliente implements Runnable {
             String mensaje;
             while ((mensaje = in.readLine()) != null) {
                 // Aquí puedes manejar el mensaje recibido
-                System.out.println("Mensaje recibido: " + mensaje);
+                //System.out.println("Mensaje recibido: " + mensaje);
             }
         } catch (Exception e) {
             e.printStackTrace();

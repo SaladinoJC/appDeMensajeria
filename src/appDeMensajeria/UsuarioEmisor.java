@@ -89,4 +89,9 @@ public class UsuarioEmisor {
 			return this.agenda.get(contacto);
 		}
 	    
+		public Chat buscaChat(String nombreContacto) {
+		    return conversaciones.get(nombreContacto);
+		}
+		
+	
 }
