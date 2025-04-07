@@ -29,11 +29,9 @@ public class Controlador implements ActionListener {
 	                // Suponiendo que el puerto se obtiene de un contacto o se establece de alguna manera
 	                int puerto = usuario.getPuerto(); // Cambia esto según sea necesario
 	                ServerSocket serverSocket = new ServerSocket(puerto);
-	                //this.vistaPrincipal.getAreaMensajes().append("Esperando conexiones en el puerto " + puerto + "\n");
 
 	                while (true) {
 	                    Socket soc = serverSocket.accept();
-	                    //this.vistaPrincipal.getAreaMensajes().append("Mensaje recibido de IP:" + soc.getInetAddress() + "\n");
 	                    ObjectInputStream input = new ObjectInputStream(soc.getInputStream());
 	                    Mensaje mensaje = (Mensaje) input.readObject();
 	                    this.vistaPrincipal.recibirMensaje(mensaje, soc);

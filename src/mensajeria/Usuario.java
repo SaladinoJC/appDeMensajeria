@@ -29,33 +29,6 @@ public class Usuario {
 	    	conversaciones.get(contactoDestino).agregarMensaje(mensaje);
 	    }
 
-	    /*public void iniciarConversacion(String nombreContacto) {
-	        for (Contacto c : contactos) {
-	            if (c.getNombre().equals(nombreContacto)) {
-	                conversaciones.put(nombreContacto, new Chat(c));
-	                break;
-	            }
-	        }
-	    }
-
-	    public void enviarMensaje(String nombreContacto, String contenido) {
-	        Chat chat = conversaciones.get(nombreContacto);
-	        if (chat != null) {
-	            Mensaje mensaje = new Mensaje(contenido, nickname);
-	            chat.agregarMensaje(mensaje);
-	            enviarMensajeRed(chat.getContacto(), contenido);
-	        }
-	    }
-
-	    private void enviarMensajeRed(Contacto contacto, String contenido) {
-	        try (Socket socket = new Socket(contacto.getDireccionIP(), contacto.getPuerto());
-	             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-	            out.println(nickname + ": " + contenido);
-	        } catch (IOException e) {
-	            System.out.println("Error al enviar mensaje a " + contacto.getNombre());
-	        }
-	    }*/
-
 	    public HashMap<String, Chat> getConversaciones() {
 			return conversaciones;
 		}

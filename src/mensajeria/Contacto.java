@@ -1,7 +1,5 @@
 package mensajeria;
 
-import java.util.SortedMap;
-
 public class Contacto {
 	 	private String nombre;
 	    private String direccionIP;
