@@ -28,9 +28,11 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
     private JButton btnAgregarContacto;
     private JButton btnConfiguracion;
     private JButton botonEnviar;
+    private Controlador controlador;
 
     public InterfazMensajeria(Usuario usuario) {
         this.usuario = usuario;
+        this.controlador = controlador;
         setTitle(usuario.getNickname() + " - Puerto " + usuario.getPuerto());
         setSize(600, 400);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -81,7 +83,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
 
         btnConfiguracion = new JButton("Configuración");
         btnConfiguracion.addActionListener(e -> {
-            VentanaConfiguracion config = new VentanaConfiguracion(this, usuario);
+            VentanaConfiguracion config = new VentanaConfiguracion(this, usuario, controlador);
             config.setVisible(true);
         });
 
@@ -323,6 +325,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
     }
 
     public void setControlador(Controlador c) {
+    	this.controlador = c;
         botonEnviar.addActionListener(c);
         btnAgregarContacto.addActionListener(c);
     }

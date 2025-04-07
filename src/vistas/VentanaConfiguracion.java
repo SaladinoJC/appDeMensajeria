@@ -13,12 +13,13 @@ public class VentanaConfiguracion extends JDialog {
     private JTextField campoPuerto;
     private Usuario usuario;
     private InterfazMensajeria interfazmensajeria;
+    private Controlador controlador;
 
-    public VentanaConfiguracion(InterfazMensajeria interfazMensajeria, Usuario usuario) {
+    public VentanaConfiguracion(InterfazMensajeria interfazMensajeria, Usuario usuario, Controlador controlador) {
     	super(interfazMensajeria, "Configuración", true);
     	this.interfazmensajeria = interfazMensajeria;
         this.usuario = usuario;
-
+        this.controlador = controlador;
         setLayout(new GridLayout(3, 2, 10, 10));
         setSize(300, 150);
         setLocationRelativeTo(interfazmensajeria);
@@ -53,7 +54,7 @@ public class VentanaConfiguracion extends JDialog {
         usuario.setNickname(nuevoNombre);
         usuario.setPuerto(nuevoPuerto);
         interfazmensajeria.setTitle(nuevoNombre + " - Puerto " + nuevoPuerto);
-
+        controlador.actualizarPuerto(nuevoPuerto);
         JOptionPane.showMessageDialog(this, "Datos actualizados correctamente.");
         dispose();
     }

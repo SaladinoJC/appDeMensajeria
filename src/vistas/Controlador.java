@@ -14,6 +14,9 @@ import mensajeria.Usuario;
 public class Controlador implements ActionListener {
 	private InterfazMensajeria vistaPrincipal;
 	private Usuario usuario;
+	private ServerSocket serverSocket;
+	private Thread hiloServidor;
+	private boolean escuchando = true;
 	
 	
 	public Controlador(InterfazMensajeria vistaPrincipal, Usuario usuario) {
@@ -24,24 +27,36 @@ public class Controlador implements ActionListener {
 	}
 	
 	private void iniciarServidor() {
-	        new Thread(() -> {
-	            try {
-	                // Suponiendo que el puerto se obtiene de un contacto o se establece de alguna manera
-	                int puerto = usuario.getPuerto(); // Cambia esto según sea necesario
-	                ServerSocket serverSocket = new ServerSocket(puerto);
-
-	                while (true) {
-	                    Socket soc = serverSocket.accept();
-	                    ObjectInputStream input = new ObjectInputStream(soc.getInputStream());
-	                    Mensaje mensaje = (Mensaje) input.readObject();
-	                    this.vistaPrincipal.recibirMensaje(mensaje, soc);
-	                    //new Thread(new ManejadorCliente(soc)).start();
-	                }
-	            } catch (Exception e) {
-
+	    escuchando = true;
+	    hiloServidor = new Thread(() -> {
+	        try {
+	            serverSocket = new ServerSocket(usuario.getPuerto());
+	            while (escuchando) {
+	                Socket soc = serverSocket.accept();
+	                ObjectInputStream input = new ObjectInputStream(soc.getInputStream());
+	                Mensaje mensaje = (Mensaje) input.readObject();
+	                this.vistaPrincipal.recibirMensaje(mensaje, soc);
 	            }
-	        }).start();
-	  }
+	        } catch (Exception e) {
+	            if (escuchando) e.printStackTrace(); // solo si no fue cerrado intencionalmente
+	        }
+	    });
+	    hiloServidor.start();
+	}
+	
+	
+public void actualizarPuerto(int nuevoPuerto) {
+    try {
+        escuchando = false;
+        if (serverSocket != null && !serverSocket.isClosed()) {
+            serverSocket.close(); // Cerramos el socket anterior
+        }
+        usuario.setPuerto(nuevoPuerto);
+        iniciarServidor(); // Lo volvemos a iniciar con el nuevo puerto
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
 
 	@Override
 	public void actionPerformed(ActionEvent e) {
