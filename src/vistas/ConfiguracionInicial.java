@@ -52,13 +52,26 @@ public class ConfiguracionInicial extends JFrame {
             return;
         }
 
-        Usuario usuario=new Usuario(nickname,puerto);
+        Usuario usuario = new Usuario(nickname, puerto);
         dispose();
-        InterfazMensajeria vista = new InterfazMensajeria(usuario);
-        Controlador controlador = new Controlador(vista, usuario);
-        vista.setControlador(controlador);
-        vista.setVisible(true);
-        //SwingUtilities.invokeLater(() -> new InterfazMensajeria(usuario));
+        try {
+            // Conectar al servidor
+            Socket socket = new Socket("localhost", 10001); // o la IP del servidor
+            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+
+            // Enviar mensaje inicial de conexión al servidor
+            out.writeObject(usuario);
+
+            // Crear la vista y el controlador con los objetos correspondientes
+            InterfazMensajeria vista = new InterfazMensajeria(usuario);
+            Controlador controlador = new Controlador(vista, usuario);
+            vista.setControlador(controlador);
+            vista.setVisible(true);
+
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "No se pudo conectar al servidor: " + e.getMessage(),
+                    "Error de conexión", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private boolean puertoDisponible(int puerto) {

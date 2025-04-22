@@ -25,12 +25,13 @@ public class Controlador implements ActionListener {
 		// Iniciar el servidor en un hilo separado
 		iniciarServidor();
 	}
-	
-	private void iniciarServidor() {
+
+    // Método para iniciar el hilo que escucha mensajes
+    private void iniciarServidor() {
 	    escuchando = true;
 	    hiloServidor = new Thread(() -> {
 	        try {
-	            serverSocket = new ServerSocket(usuario.getPuerto());
+	            ServerSocket serverSocket = new ServerSocket(usuario.getPuerto());
 	            while (escuchando) {
 	                Socket soc = serverSocket.accept();
 	                ObjectInputStream input = new ObjectInputStream(soc.getInputStream());
@@ -43,29 +44,37 @@ public class Controlador implements ActionListener {
 	    });
 	    hiloServidor.start();
 	}
-	
-	
-public void actualizarPuerto(int nuevoPuerto) {
-    try {
-        escuchando = false;
-        if (serverSocket != null && !serverSocket.isClosed()) {
-            serverSocket.close(); // Cerramos el socket anterior
+
+    // Método para enviar mensaje al servidor
+   // public void enviarMensaje(Mensaje mensaje) {
+     //   try {
+       //     output.writeObject(mensaje);  // Enviar el mensaje al servidor
+      //  } catch (Exception e) {
+      //      e.printStackTrace();
+     //   }
+  //  }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        if(e.getActionCommand().equalsIgnoreCase(InterfazVista.ABRIRVENTAGREGARCONTACTO)) {
+            this.vistaPrincipal.abrirVentanaAgregarContacto();
         }
-        usuario.setPuerto(nuevoPuerto);
-        iniciarServidor(); // Lo volvemos a iniciar con el nuevo puerto
-    } catch (Exception e) {
-        e.printStackTrace();
+        else if(e.getActionCommand().equalsIgnoreCase(InterfazVista.ENVIARMENSAJE)) {
+            this.vistaPrincipal.formarMensaje();
+        }
     }
-}
+    
+    
 
-	@Override
-	public void actionPerformed(ActionEvent e) {
-		if(e.getActionCommand().equalsIgnoreCase(InterfazVista.ABRIRVENTAGREGARCONTACTO)) {
-			this.vistaPrincipal.abrirVentanaAgregarContacto();
-		}
-		else if(e.getActionCommand().equalsIgnoreCase(InterfazVista.ENVIARMENSAJE)) {
-			this.vistaPrincipal.formarMensaje();
-		}
-	}
-
+    // Métodos para finalizar la conexión
+  //  public void cerrarConexion() {
+      //  try {
+      //      escuchando = false;
+        //    if (serverSocket != null && !serverSocket.isClosed()) {
+       //         socket.close();
+       //     }
+       // } catch (Exception e) {
+      //      e.printStackTrace();
+       // }
+   // }
 }

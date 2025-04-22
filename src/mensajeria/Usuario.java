@@ -4,14 +4,14 @@ import java.net.*;
 import java.util.*;
 
 
-public class Usuario {
+public class Usuario implements Serializable{
 	 private String nickname;
 	    private int puerto;
 	    private HashMap<String, Contacto> agenda;
 	    private HashMap<String, Chat> conversaciones;
 
 		public Usuario(String nickname, int puerto) {
-	        this.nickname = nickname;
+	        this.nickname = nickname; 
 	        this.puerto = puerto;
 	        this.agenda = new HashMap<>();
 	        this.conversaciones = new HashMap<>();

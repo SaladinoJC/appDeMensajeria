@@ -66,7 +66,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
                     areaMensajes.setText("");
                     if (chat != null) {
                         for (Mensaje m : chat.getMensajes()) {
-                            areaMensajes.append(m.getRemitente() + ": " + m.getContenido() + "\n");
+                            areaMensajes.append(m.getNicknameRemitente() + ": " + m.getContenido() + "\n");
                         }
                     }
                 }
@@ -80,15 +80,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
 
         btnAgregarContacto = new JButton("Agregar Contacto");
         btnAgregarContacto.setActionCommand(ABRIRVENTAGREGARCONTACTO);
-
-        btnConfiguracion = new JButton("Configuración");
-        btnConfiguracion.addActionListener(e -> {
-            VentanaConfiguracion config = new VentanaConfiguracion(this, usuario, controlador);
-            config.setVisible(true);
-        });
-
         panelBotones.add(btnAgregarContacto);
-        panelBotones.add(btnConfiguracion);
         panelContactos.add(panelBotones, BorderLayout.SOUTH);
 
         // Panel mensajes
@@ -140,14 +132,14 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
     }
 
     public void recibirMensaje(Mensaje mensaje, Socket soc) {
-        String remitente = mensaje.getRemitente();
+        String remitente = mensaje.getNicknameRemitente();
         String contactoSeleccionado = listaContactos.getSelectedValue();
 
         Contacto contacto = usuario.buscaContacto(remitente);
         if (contacto == null) {
             String ip = soc.getInetAddress().getHostAddress();
             int puerto = mensaje.getPuertoRemitente();
-            contacto = new Contacto(remitente, ip, puerto);
+            contacto = new Contacto(remitente, ip, puerto, mensaje.getNicknameRemitente());
             usuario.agregarContacto(contacto);
         }
 
@@ -184,15 +176,13 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
     private void enviarMensaje(String contenidoMensaje, String contacto) {
         try {
             Contacto contactoDestino = usuario.buscaContacto(contacto);
-            Mensaje mensaje = new Mensaje(contenidoMensaje, usuario.getNickname(), usuario.getPuerto());
-
-            Socket socket = new Socket(contactoDestino.getDireccionIP(), contactoDestino.getPuerto());
+            Mensaje mensaje = new Mensaje(contenidoMensaje, usuario.getNickname(), usuario.getPuerto(), contactoDestino.getDireccionIP(), contactoDestino.getPuerto(), contactoDestino.getNickname());
+            Socket socket = new Socket("localhost", 10000);
             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
             out.flush();
             out.writeObject(mensaje);
             out.close();
             socket.close();
-
             usuario.agregarMensaje(mensaje, contacto);
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Error al enviar el mensaje: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -270,7 +260,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
                             JOptionPane.ERROR_MESSAGE);
                         return;
                     }
-                    Contacto nuevoContacto = new Contacto(nombre, ip, puertoInt);
+                    Contacto nuevoContacto = new Contacto(nombre, ip, puertoInt, nombre);   // CORREGIR NOMBRE DEL DIRECTORIO
                     Chat nuevoChat = new Chat(nuevoContacto);
                     usuario.agregarChat(nuevoChat);
                     usuario.agregarContacto(nuevoContacto);

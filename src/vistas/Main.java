@@ -1,8 +1,13 @@
 package vistas;
 import javax.swing.*;
+
+import mensajeria.Servidor;
 public class Main {
+	
+		
 		 public static void main(String[] args) {
-		        SwingUtilities.invokeLater(ConfiguracionInicial::new);
+			 	int flag=0;
+		        SwingUtilities.invokeLater(ConfiguracionInicial::new); 
 		    }
 	}
 
