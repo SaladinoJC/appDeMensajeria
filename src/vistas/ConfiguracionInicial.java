@@ -3,10 +3,12 @@ import java.io.*;
 import java.net.*;
 import javax.swing.*;
 
+import controlador.*;
 import mensajeria.Usuario;
 
 import java.awt.*;
 
+@SuppressWarnings("serial")
 public class ConfiguracionInicial extends JFrame {
     private JTextField nicknameField;
     private JTextField puertoField;
@@ -28,6 +30,9 @@ public class ConfiguracionInicial extends JFrame {
         JButton iniciarBtn = new JButton("Iniciar");
         iniciarBtn.addActionListener(e -> iniciarAplicacion());
         add(iniciarBtn);
+        
+        nicknameField.addActionListener(e -> iniciarAplicacion());
+        puertoField.addActionListener(e -> iniciarAplicacion());
 
         setVisible(true);
     }
@@ -51,28 +56,52 @@ public class ConfiguracionInicial extends JFrame {
             JOptionPane.showMessageDialog(this, "Ingrese un puerto válido (1024-65535 y disponible).", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-
-        Usuario usuario = new Usuario(nickname, puerto);
-        dispose();
+        
+        InetAddress direccion = null;
         try {
-            // Conectar al servidor
-            Socket socket = new Socket("localhost", 10001); // o la IP del servidor
-            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+            direccion = InetAddress.getLocalHost();
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
+        String ip = direccion.getHostAddress();
+        Usuario usuario = new Usuario(nickname, puerto, ip);
+        dispose();
 
-            // Enviar mensaje inicial de conexión al servidor
-            out.writeObject(usuario);
+        Socket socket = null;
+        ObjectOutputStream out = null;
 
+        try {
             // Crear la vista y el controlador con los objetos correspondientes
             InterfazMensajeria vista = new InterfazMensajeria(usuario);
             Controlador controlador = new Controlador(vista, usuario);
             vista.setControlador(controlador);
             vista.setVisible(true);
 
+            // Conectar al servidor
+            socket = new Socket("localhost", 10001); // o la IP del servidor
+            out = new ObjectOutputStream(socket.getOutputStream());
+
+            // Enviar mensaje inicial de conexión al servidor
+            out.writeObject(usuario);
+
         } catch (IOException e) {
             JOptionPane.showMessageDialog(this, "No se pudo conectar al servidor: " + e.getMessage(),
                     "Error de conexión", JOptionPane.ERROR_MESSAGE);
+        } finally {
+            // Asegurarse de cerrar los recursos (Socket y ObjectOutputStream)
+            try {
+                if (out != null) {
+                    out.close();
+                }
+                if (socket != null && !socket.isClosed()) {
+                    socket.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
+
 
     private boolean puertoDisponible(int puerto) {
         try (ServerSocket serverSocket = new ServerSocket(puerto)) {

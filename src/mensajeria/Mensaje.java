@@ -4,7 +4,7 @@ import java.util.*;
 public class Mensaje implements Serializable{
 	private String contenido;
 	private String nicknameRemitente;
-	 private int puertoRemitente;
+	private int puertoRemitente;
     private Date timestamp;
     private String ipdestinatario;
     private String nicknameDestinatario;
