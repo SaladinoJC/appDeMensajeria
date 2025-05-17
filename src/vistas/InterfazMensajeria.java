@@ -67,7 +67,12 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
                             // Buscar el contacto correspondiente para saber el nombre personalizado
                             Contacto c = usuario.buscaContactoPorNombre(m.getNicknameRemitente());
                             String nombreParaMostrar = (c != null) ? c.getNombre() : m.getNicknameRemitente();
-                            areaMensajes.append(nombreParaMostrar +": " + m.getContenido() + "  " + m.getTimestamp().getHours() +":"+ m.getTimestamp().getMinutes() + "\n");
+                            areaMensajes.append(String.format("%02d:%02d %s  : %s\n",
+                            	    m.getTimestamp().getHours(),
+                            	    m.getTimestamp().getMinutes(),
+                            	    nombreParaMostrar,
+                            	    m.getContenido()));
+
                         }
                     }
                 }
@@ -171,7 +176,11 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         usuario.agregarMensaje(mensaje, contacto.getNombre());
 
         if (contactoSeleccionado != null && contactoSeleccionado.replace(" (nuevo)", "").equals(contacto.getNombre())) {
-        	areaMensajes.append(contacto.getNombre() +": " + mensaje.getContenido() + "  " + mensaje.getTimestamp().getHours() +":"+ mensaje.getTimestamp().getMinutes() + "\n");
+        	areaMensajes.append(String.format("%02d:%02d %s: %s\n",
+        		    mensaje.getTimestamp().getHours(),
+        		    mensaje.getTimestamp().getMinutes(),
+        		    contacto.getNombre(),
+        		    mensaje.getContenido()));
         } else {
             reproducirSonido(); // Usar la ruta relativa dentro del .jar
             boolean encontrado = false;
@@ -203,7 +212,11 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
                 contactoDestino.getNickname()
             );
             
-            areaMensajes.append(usuario.getNickname() +": " + contenidoMensaje + "  " + mensaje.getTimestamp().getHours() +":"+ mensaje.getTimestamp().getMinutes() + "\n");
+            areaMensajes.append(String.format("%02d:%02d %s: %s\n",
+            	    mensaje.getTimestamp().getHours(),
+            	    mensaje.getTimestamp().getMinutes(),
+            	    usuario.getNickname(),
+            	    contenidoMensaje));
             areaTextoMensaje.setText("");
             
             Socket socket = new Socket("localhost", 10000);
