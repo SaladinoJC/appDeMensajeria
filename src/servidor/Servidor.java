@@ -41,8 +41,14 @@ public class Servidor extends JFrame {
     // Simula vida real del servidor
     private volatile boolean estaVivo = true;
 
-    public Servidor(String nombreServidor) {
+    // Puerto de control
+    private int puertoControl;
+    private ServerSocket serverSocketControl;
+    private Thread hiloControl;
+
+    public Servidor(String nombreServidor, int puertoControl) {
         this.nombreServidor = nombreServidor;
+        this.puertoControl = puertoControl;
         setTitle("Servidor Mensajería ("+nombreServidor+")");
         setSize(500, 400);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -73,23 +79,77 @@ public class Servidor extends JFrame {
                 shutdown();
             }
         });
+
+        iniciarServidorControl();
     }
 
-    // Llamado por Monitor para cambiar a PRIMARIO/SECUNDARIO
+    // Este método solamente es usado para inyección inicial manual (no por socket)
     public synchronized void asignarRol(String nuevoRol, Monitor monitor) {
         this.monitor = monitor;
         if(!this.rol.equals(nuevoRol)) {
             this.rol = nuevoRol;
-
             if(rol.equals(ROL_PRIMARIO)) {
                 log("*** Ahora soy PRIMARIO ***");
                 iniciarServidores();
-                iniciarReplicaEstadoConMonitor();
+                //iniciarReplicaEstadoConMonitor(); NO hace falta la replica periódica
             } else {
                 log("*** Ahora soy SECUNDARIO ***");
                 pararServidores();
             }
         }
+    }
+
+    private synchronized void asignarRolDesdeSocket(String nuevoRol) {
+        if (!this.rol.equals(nuevoRol)) {
+            this.rol = nuevoRol;
+            if (rol.equals(ROL_PRIMARIO)) {
+                log("*** Ahora soy PRIMARIO ***");
+                iniciarServidores();
+                //iniciarReplicaEstadoConMonitor();
+            } else {
+                log("*** Ahora soy SECUNDARIO ***");
+                pararServidores();
+            }
+        }
+    }
+
+    private void iniciarServidorControl() {
+        hiloControl = new Thread(() -> {
+            try {
+                serverSocketControl = new ServerSocket(puertoControl);
+                log("Servidor de CONTROL en puerto " + puertoControl);
+                while (estaVivo) {
+                    Socket socket = serverSocketControl.accept();
+                    ObjectInputStream  in  = new ObjectInputStream(socket.getInputStream());
+                    ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+                    Object orden = in.readObject();
+                    if (orden instanceof String) {
+                        switch((String)orden) {
+                            case "ASIGNAR_ROL":
+                                String nuevorol = (String) in.readObject();
+                                asignarRolDesdeSocket(nuevorol);
+                                out.writeObject("OK");
+                                break;
+                            case "PING":
+                                out.writeObject("OK");
+                                break;
+                            case "SINCRONIZAR_ESTADO":
+                                Map<String, Usuario> usuarios = (Map<String, Usuario>) in.readObject();
+                                Map<String, LinkedList<Mensaje>> pendientes = (Map<String, LinkedList<Mensaje>>) in.readObject();
+                                sincronizarEstado(usuarios, pendientes);
+                                out.writeObject("OK");
+                                break;
+                            default:
+                                out.writeObject("ERROR");
+                        }
+                    }
+                    out.close(); in.close(); socket.close();
+                }
+            } catch (IOException | ClassNotFoundException e) {
+                log("Error en socket control: "+e.getMessage());
+            }
+        });
+        hiloControl.start();
     }
 
     private void iniciarServidores() {
@@ -178,6 +238,7 @@ public class Servidor extends JFrame {
                     this.MapPendientes
                       .computeIfAbsent(mensaje.getNicknameDestinatario(), k -> new LinkedList<>())
                       .addLast(mensaje);
+                    replicaEstadoAlMonitor();
                 }
             } finally {
                 try { if (out != null) out.close(); } catch (Exception e) {}
@@ -188,15 +249,20 @@ public class Servidor extends JFrame {
 
     private void manejarRegistros(Usuario usuario) {
         String nickname = usuario.getNickname();
+        boolean modificado = false;
         synchronized(this) {
             if (!directorioUsuarios.containsKey(nickname)) {
                 directorioUsuarios.put(nickname, usuario);
                 log("Usuario registrado y logueado: " + nickname + ", en el puerto " + usuario.getPuerto());
                 this.MapPendientes.put(nickname, new LinkedList<Mensaje>());
+                modificado = true;
             } else {
                 log("Usuario Logueado: " + nickname + ", en el puerto " + usuario.getPuerto());
                 enviarMensajesPendientes(nickname);
             }
+        }
+        if (modificado) {
+            replicaEstadoAlMonitor();
         }
     }
 
@@ -228,30 +294,22 @@ public class Servidor extends JFrame {
         SwingUtilities.invokeLater(() -> logArea.append(mensaje + "\n"));
     }
 
-    // ***** REPORTE/SYNC AL MONITOR *****
-
-    private void iniciarReplicaEstadoConMonitor() {
-        if (hiloReplicaEstado != null && hiloReplicaEstado.isAlive()) return;
-        hiloReplicaEstado = new Thread(() -> {
-            while (rol.equals(ROL_PRIMARIO) && monitor != null && estaVivo) {
-                try {
-                    Map<String, Usuario> copiaUsuarios;
-                    Map<String, LinkedList<Mensaje>> copiaPendientes;
-                    synchronized(this) {
-                        copiaUsuarios = new HashMap<>(directorioUsuarios);
-                        copiaPendientes = new HashMap<>();
-                        for (Map.Entry<String, LinkedList<Mensaje>> ent : MapPendientes.entrySet()) {
-                            copiaPendientes.put(ent.getKey(), new LinkedList<>(ent.getValue()));
-                        }
-                    }
-                    monitor.actualizarEstadoDesdePrimario(this, copiaUsuarios, copiaPendientes);
-                    Thread.sleep(3000);
-                } catch (Exception e) {
-                    // ciclo sigue
+    // -- RÉPLICA AL MONITOR IMMEDIATA --
+    private void replicaEstadoAlMonitor() {
+        try (Socket s = new Socket("localhost", 10010);
+             ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream())) {
+            out.writeObject("REPLICA_ESTADO");
+            synchronized(this) {
+                out.writeObject(new HashMap<>(directorioUsuarios));
+                Map<String, LinkedList<Mensaje>> copiaPendientes = new HashMap<>();
+                for (Map.Entry<String, LinkedList<Mensaje>> ent : MapPendientes.entrySet()) {
+                    copiaPendientes.put(ent.getKey(), new LinkedList<>(ent.getValue()));
                 }
+                out.writeObject(copiaPendientes);
             }
-        });
-        hiloReplicaEstado.start();
+        } catch (Exception e) {
+            log("No se pudo replicar estado al monitor ("+e.getMessage()+")");
+        }
     }
 
     // Llamado solo por el Monitor cuando asciende este servidor a primario
@@ -265,7 +323,7 @@ public class Servidor extends JFrame {
         log("Estado sincronizado desde Monitor tras ascenso a PRIMARIO");
     }
 
-    // Llamado por el Monitor para chequear si está vivo
+    // Si se llama por referencia (pruebas locales)
     public boolean ping() {
         if (!estaVivo) throw new RuntimeException("Servidor caído");
         return true;
@@ -274,6 +332,7 @@ public class Servidor extends JFrame {
     public void shutdown() {
         estaVivo = false;
         pararServidores();
+        try { if (serverSocketControl != null) serverSocketControl.close(); } catch (Exception e) { }
         log("Servidor " + nombreServidor + " APAGADO por cierre de ventana");
     }
 
