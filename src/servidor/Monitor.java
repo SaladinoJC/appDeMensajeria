@@ -23,7 +23,7 @@ public class Monitor {
     private Map<String, LinkedList<Mensaje>> ultimoPendientes = new HashMap<>();
 
     private int puertoReplica = 10010;
-    private int puertoAltas = 11000;
+    private int puertoAltas = 10003;
     private final Map<String, Integer> nombresApuertos = new LinkedHashMap<>();
 
     // Interfaz gráfica

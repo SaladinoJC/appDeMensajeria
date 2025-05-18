@@ -11,7 +11,7 @@ public class MainServidorStandalone {
         int puertoControl = -1;
 
         // 1. CONSULTA AL MONITOR qué nombres y puertos están libres
-        try (Socket sk = new Socket("localhost", 11000);
+        try (Socket sk = new Socket("localhost", 10003);
              ObjectOutputStream out = new ObjectOutputStream(sk.getOutputStream());
              ObjectInputStream in = new ObjectInputStream(sk.getInputStream())) {
             out.writeObject("CONSULTA_LIBRES");
@@ -36,7 +36,7 @@ public class MainServidorStandalone {
         try {
             Servidor servidor = new Servidor(nombre, puertoControl);
 
-            try (Socket sk = new Socket("localhost", 11000);
+            try (Socket sk = new Socket("localhost", 10003);
                  ObjectOutputStream out = new ObjectOutputStream(sk.getOutputStream());
                  ObjectInputStream in = new ObjectInputStream(sk.getInputStream())) {
                 out.writeObject("ALTA_SERVIDOR");
