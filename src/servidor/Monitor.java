@@ -2,19 +2,20 @@ package servidor;
 
 import mensajeria.Mensaje;
 import mensajeria.Usuario;
-
 import java.net.*;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
+import javax.swing.*;
+import java.awt.*;
 
 public class Monitor {
 
     public static final String ROL_PRIMARIO = "PRIMARIO";
     public static final String ROL_SECUNDARIO = "SECUNDARIO";
 
-    private final List<Integer> puertosControl;
-    private final List<String> nombresServidores;
+    private final java.util.List<Integer> puertosControl;
+    private final java.util.List<String> nombresServidores;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private int idxPrimario = 0;
 
@@ -23,27 +24,39 @@ public class Monitor {
 
     private int puertoReplica = 10010;
     private int puertoAltas = 11000;
-
-    // NUEVO: para mapear nombre->puerto (rango S0-S9 y 10004-10013)
     private final Map<String, Integer> nombresApuertos = new LinkedHashMap<>();
 
-    public Monitor(List<Integer> puertosControl) {
+    // Interfaz gráfica
+    private final MonitorGUI gui;
+
+    public Monitor(java.util.List<Integer> puertosControl) {
         this.puertosControl = puertosControl;
         this.nombresServidores = new ArrayList<>();
+
+        // INICIALIZAR GUI
+        gui = new MonitorGUI("Monitor");
+        SwingUtilities.invokeLater(() -> gui.setVisible(true));
+
         for (int i = 0; i < puertosControl.size(); i++) {
             String nombre = "S" + i;
             this.nombresServidores.add(nombre);
             nombresApuertos.put(nombre, puertosControl.get(i));
         }
         new Thread(this::escucharReplicas).start();
-        escucharAltasDinamicas(); // llamada aquí
+        escucharAltasDinamicas();
         seleccionarRoles();
         iniciarMonitoreo();
     }
 
+    /** Log seguro para multihilo. */
+    private void appendLog(String msg) {
+        String datetime = new java.text.SimpleDateFormat("HH:mm:ss").format(new Date());
+        SwingUtilities.invokeLater(() -> gui.appendTexto("[" + datetime + "] " + msg + "\n"));
+    }
+
     private void escucharReplicas() {
         try (ServerSocket ss = new ServerSocket(puertoReplica)) {
-            System.out.println("Monitor: Listo para recibir replicación de estado en " + puertoReplica);
+            appendLog("Monitor: Listo para recibir replicación de estado en " + puertoReplica);
             while (true) {
                 Socket sock = ss.accept();
                 ObjectInputStream ois = new ObjectInputStream(sock.getInputStream());
@@ -60,7 +73,7 @@ public class Monitor {
                 sock.close();
             }
         } catch (Exception e) {
-            System.out.println("Error en escucha de replica: " + e.getMessage());
+            appendLog("Error en escucha de replica: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -115,7 +128,7 @@ public class Monitor {
 
     private void iniciarMonitoreo() {
         scheduler.scheduleAtFixedRate(() -> {
-            limpiarServidoresCaidos(); // <-- LLAMADA AQUÍ!
+            limpiarServidoresCaidos();
             if(!chequearPrimarioVivo()) promoverNuevoPrimario();
         }, 2, 2, TimeUnit.SECONDS);
     }
@@ -126,54 +139,42 @@ public class Monitor {
         return enviarPing(idxPrimario);
     }
 
-    /**
-     * Libera los servidores que ya no responden al PING (todos los secundarios, no el primario!).
-     * Muy importante: se llama antes de promover para no dejar huecos y liberar slots.
-     */
     private void limpiarServidoresCaidos() {
-        // Empieza desde el último al primero para evitar problemas al remover mientras se itera
         for (int i = puertosControl.size() - 1; i >= 0; i--) {
-            if (i == idxPrimario) continue; // El primario se chequea y promueve aparte
+            if (i == idxPrimario) continue;
             if (!enviarPing(i)) {
-                System.out.println("Monitor: Liberando nombre y puerto de servidor caído (S" + i + ")");
+               // appendLog("Monitor: Liberando nombre y puerto de servidor caído (S" + i + ")");
                 liberarNombrePuertoPorIndice(i);
             }
         }
     }
 
-    /**
-     * Cuando se detecta que el primario está caído y se promueve otro, hay que liberar ese nombre/puerto.
-     */
     private void promoverNuevoPrimario() {
-        // Liberar el primario caído ANTES de promover (idxPrimario)
-        System.out.println("Monitor: Liberando primario caído (S" + idxPrimario + ")");
-        liberarNombrePuertoPorIndice(idxPrimario);
-
-        if(puertosControl.isEmpty()) {
-            System.out.println("Monitor: No hay servidores disponibles para promover");
-            return;
-        }
-
-        int nuevoPrimario = -1;
-        for(int i = 0; i < puertosControl.size(); i++) {
-            if(enviarPing(i)) {
-                nuevoPrimario = i;
-                break;
-            }
-        }
-        if(nuevoPrimario != -1) {
-            System.out.println("Monitor: Ascendiendo a S"+nuevoPrimario+" como PRIMARIO");
-            idxPrimario = nuevoPrimario;
-            enviarSincronizarEstado(idxPrimario, ultimoUsuarios, ultimoPendientes);
-            seleccionarRoles();
-        } else {
-            System.out.println("Monitor: No hay servidores disponibles para promover");
-        }
+    	int nuevoPrimario = -1;
+    	for(int i = 0; i < puertosControl.size(); i++) {
+    	    if(enviarPing(i)) {
+    	        nuevoPrimario = i;
+    	        break;
+    	    }
+    	}
+    	if(nuevoPrimario != -1) {
+    	    Integer puerto = puertosControl.get(nuevoPrimario);
+    	    String nombreNuevoPrimario = null;
+    	    for (Map.Entry<String, Integer> ent : nombresApuertos.entrySet()) {
+    	        if (Objects.equals(ent.getValue(), puerto)) {
+    	            nombreNuevoPrimario = ent.getKey(); break;
+    	        }
+    	    }
+    	    if (nombreNuevoPrimario == null) nombreNuevoPrimario = "S?";
+    	    appendLog("Monitor: Ascendiendo a " + nombreNuevoPrimario + " como PRIMARIO");
+    	    idxPrimario = nuevoPrimario;
+    	    enviarSincronizarEstado(idxPrimario, ultimoUsuarios, ultimoPendientes);
+    	    seleccionarRoles();
+    	} else {
+    	    appendLog("Monitor: No hay servidores disponibles para promover");
+    	}
     }
 
-    /**
-     * Elimina nombreServidor/puerto/entrada de los registros internos en función del índice actual.
-     */
     private void liberarNombrePuertoPorIndice(int idx) {
         if (idx < 0 || idx >= puertosControl.size()) return;
         Integer puerto = puertosControl.remove(idx);
@@ -186,19 +187,16 @@ public class Monitor {
         if (nombreABorrar != null) {
             nombresApuertos.remove(nombreABorrar);
             nombresServidores.remove(nombreABorrar);
-            System.out.println("Monitor: Liberado " + nombreABorrar + " - " + puerto);
+            appendLog("Monitor: Liberado " + nombreABorrar + " - " + puerto);
         }
-        // Si el primario fue removido, hay que ajustar el índice del primario (idxPrimario)
         if (idxPrimario > idx) idxPrimario--;
         if (idxPrimario >= puertosControl.size()) idxPrimario = 0;
     }
 
-    //------------------ ALTA/INFO DE NUEVOS SERVIDORES DINÁMICAMENTE ------------------
-
     private void escucharAltasDinamicas() {
         new Thread(() -> {
             try (ServerSocket ss = new ServerSocket(puertoAltas)) {
-                System.out.println("Monitor: Esperando altas y consultas en " + puertoAltas);
+                appendLog("Monitor: Esperando altas y consultas en " + puertoAltas);
                 while (true) {
                     Socket sk = ss.accept();
                     ObjectInputStream in = new ObjectInputStream(sk.getInputStream());
@@ -206,11 +204,9 @@ public class Monitor {
                     Object orden = in.readObject();
 
                     if ("CONSULTA_LIBRES".equals(orden)) {
-                        // Devuelve nombres-libres y puertos-libres (rangos fijos S0-S9, 10004-10013)
-                        List<String> usados = new ArrayList<>(nombresApuertos.keySet());
-                        List<String> libresNombre = new ArrayList<>();
-                        List<Integer> libresPuertos = new ArrayList<>();
-
+                        java.util.List<String> usados = new ArrayList<>(nombresApuertos.keySet());
+                        java.util.List<String> libresNombre = new ArrayList<>();
+                        java.util.List<Integer> libresPuertos = new ArrayList<>();
                         for (int i = 0; i < 10; i++) {
                             String posible = "S" + i;
                             if (!usados.contains(posible)) libresNombre.add(posible);
@@ -228,7 +224,7 @@ public class Monitor {
                         puertosControl.add(puertoCtrol);
                         if (!nombresServidores.contains(nombre)) nombresServidores.add(nombre);
                         out.writeObject("OK");
-                        System.out.println("Monitor: Servidor ALTA: " + nombre + " en " + puertoCtrol);
+                        appendLog("Monitor: Servidor ALTA: " + nombre + " en " + puertoCtrol);
                         enviarAsignarRol(puertosControl.size()-1, ROL_SECUNDARIO);
                     }
                     out.close();
@@ -236,8 +232,41 @@ public class Monitor {
                     sk.close();
                 }
             } catch (Exception e) {
+                appendLog("Monitor: Error en altas dinámicas: " + e.getMessage());
                 e.printStackTrace();
             }
         }).start();
+    }
+
+    // ---- CLASE INTERNA: GUI DE MONITOR (estilo Servidor) -----
+    private static class MonitorGUI extends JFrame {
+        private final JTextArea area;
+
+        public MonitorGUI(String nombreVentana) {
+            setTitle("Monitor Mensajería (" + nombreVentana + ")");
+            setSize(350, 280);
+            setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            setLayout(new BorderLayout());
+
+            area = new JTextArea();
+            area.setEditable(false);
+            add(new JScrollPane(area), BorderLayout.CENTER);
+
+            // igual que tu posicionamiento para servidores
+            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+            int screenWidth = screenSize.width;
+            int screenHeight = screenSize.height;
+            int numOffset = 0; // Si quieres desplazar varias, puedes variar este valor
+            int x = screenWidth - getWidth() - 20 * numOffset;
+            int y = (screenHeight - getHeight()) / 2;
+            setLocation(x, y);
+
+            setVisible(true);
+        }
+
+        public void appendTexto(String texto) {
+            area.append(texto);
+            area.setCaretPosition(area.getDocument().getLength());
+        }
     }
 }

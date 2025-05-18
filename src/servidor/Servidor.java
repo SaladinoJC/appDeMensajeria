@@ -50,7 +50,7 @@ public class Servidor extends JFrame {
         this.nombreServidor = nombreServidor;
         this.puertoControl = puertoControl;
         setTitle("Servidor Mensajería ("+nombreServidor+")");
-        setSize(500, 400);
+        setSize(300, 250);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout());
 
@@ -291,7 +291,8 @@ public class Servidor extends JFrame {
     }
 
     private void log(String mensaje) {
-        SwingUtilities.invokeLater(() -> logArea.append(mensaje + "\n"));
+    	String datetime = new java.text.SimpleDateFormat("HH:mm:ss").format(new Date());
+        SwingUtilities.invokeLater(() -> logArea.append("[" + datetime + "] " + mensaje + "\n"));
     }
 
     // -- RÉPLICA AL MONITOR IMMEDIATA --

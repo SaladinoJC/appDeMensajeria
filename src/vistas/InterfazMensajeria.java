@@ -1,18 +1,12 @@
 package vistas;
 
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.FloatControl;
 import javax.swing.*;
 import javax.swing.border.LineBorder;
-
+import javax.swing.text.*;
 import controlador.Controlador;
-
-import javax.sound.sampled.*;
-
-import mensajeria.Chat;
-import mensajeria.Contacto;
-import mensajeria.Mensaje;
-import mensajeria.Usuario;
-
-
+import mensajeria.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.ObjectOutputStream;
@@ -24,103 +18,110 @@ import java.util.Map;
 public class InterfazMensajeria extends JFrame implements InterfazVista {
     private DefaultListModel<String> modeloContactos;
     private JList<String> listaContactos;
-    private JTextArea areaMensajes;
+    private JTextPane areaMensajes;
     private JTextArea areaTextoMensaje;
     private JButton btnAgregarContacto;
     private JButton botonEnviar;
     private Controlador controlador;
 
+    private static final String FUENTE = "Segoe UI";
+    private static final Color COLOR_BG_VENTANA = new Color(34, 44, 54);
+    private static final Color COLOR_BG_CONTACTOS = new Color(28, 38, 48);
+    private static final Color COLOR_BURBUJA_MIO = new Color(42, 117, 89);
+    private static final Color COLOR_BURBUJA_OTRO = new Color(49, 58, 72);
+    private static final Color COLOR_TXT = new Color(255, 255, 255);
+
     public InterfazMensajeria(Usuario usuario) {
         setTitle(usuario.getNickname() + " - Puerto " + usuario.getPuerto());
-        setSize(600, 400);
+        setSize(600, 450);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        // Panel de contactos
+        // -------- Panel de contactos --------
+
+        // Panel de la lista y el botón (usa BorderLayout)
         JPanel panelContactos = new JPanel(new BorderLayout());
-        panelContactos.setBackground(Color.DARK_GRAY);
+        panelContactos.setBackground(COLOR_BG_CONTACTOS);
         panelContactos.setBorder(new LineBorder(Color.BLACK, 2));
 
         modeloContactos = new DefaultListModel<>();
         listaContactos = new JList<>(modeloContactos);
-        listaContactos.setBackground(Color.LIGHT_GRAY);
-        panelContactos.add(new JScrollPane(listaContactos), BorderLayout.CENTER);
-
-        // Click en contacto → mostrar mensajes
-        listaContactos.addMouseListener(new MouseAdapter() {
+        listaContactos.setBackground(COLOR_BG_CONTACTOS);
+        listaContactos.setForeground(COLOR_TXT); // FORZADO: fuente blanca
+        listaContactos.setCellRenderer(new DefaultListCellRenderer() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                String seleccionado = listaContactos.getSelectedValue();
-                if (seleccionado != null) {
-                    String nombreLimpio = seleccionado.replace(" (nuevo)", "");
-                    // Limpiar el (nuevo) del modelo visual si está presente
-                    if (seleccionado.endsWith(" (nuevo)")) {
-                        int index = modeloContactos.indexOf(seleccionado);
-                        if (index != -1) {
-                            modeloContactos.set(index, nombreLimpio);
-                        }
-                    }
-                    Chat chat = usuario.buscaChat(nombreLimpio);
-                    areaMensajes.setText("");
-                    if (chat != null) {
-                        for (Mensaje m : chat.getMensajes()) {
-                            // Buscar el contacto correspondiente para saber el nombre personalizado
-                            Contacto c = usuario.buscaContactoPorNombre(m.getNicknameRemitente());
-                            String nombreParaMostrar = (c != null) ? c.getNombre() : m.getNicknameRemitente();
-                            areaMensajes.append(String.format("%02d:%02d %s  : %s\n",
-                            	    m.getTimestamp().getHours(),
-                            	    m.getTimestamp().getMinutes(),
-                            	    nombreParaMostrar,
-                            	    m.getContenido()));
-
-                        }
-                    }
-                }
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                    boolean isSelected, boolean cellHasFocus) {
+                JLabel label = (JLabel)super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                label.setForeground(COLOR_TXT);
+                label.setBackground(isSelected ? new Color(52, 72, 100) : COLOR_BG_CONTACTOS);
+                label.setFont(new Font(FUENTE, Font.PLAIN, 15));
+                label.setOpaque(true);
+                return label;
             }
         });
+        panelContactos.add(new JScrollPane(listaContactos), BorderLayout.CENTER);
 
-        // Panel botones
-        JPanel panelBotones = new JPanel(new GridLayout(2, 1));
-        panelBotones.setBackground(Color.DARK_GRAY);
-        panelBotones.setBorder(new LineBorder(Color.BLACK, 2));
-
+        // Botón todo abajo:
         btnAgregarContacto = new JButton("Agregar Contacto");
         btnAgregarContacto.setActionCommand(ABRIRVENTAGREGARCONTACTO);
-        panelBotones.add(btnAgregarContacto);
+        btnAgregarContacto.setFont(new Font(FUENTE, Font.BOLD, 13));
+        btnAgregarContacto.setBackground(new Color(80, 140, 200));
+        btnAgregarContacto.setForeground(Color.WHITE);
+        btnAgregarContacto.setFocusPainted(false);
 
-        panelContactos.add(panelBotones, BorderLayout.SOUTH);
+        JPanel panelBtnAgregar = new JPanel(new BorderLayout());
+        panelBtnAgregar.setBackground(COLOR_BG_CONTACTOS);
+        panelBtnAgregar.setBorder(BorderFactory.createEmptyBorder(2, 8, 8, 8));
+        panelBtnAgregar.add(btnAgregarContacto, BorderLayout.SOUTH);
+        panelContactos.add(panelBtnAgregar, BorderLayout.SOUTH);
 
-        // Panel mensajes
+        // -------- Mensajes --------
         JPanel panelMensajes = new JPanel(new BorderLayout());
-        panelMensajes.setBackground(Color.DARK_GRAY);
+        panelMensajes.setBackground(COLOR_BG_VENTANA);
         panelMensajes.setBorder(new LineBorder(Color.BLACK, 2));
 
-        areaMensajes = new JTextArea();
+        areaMensajes = new JTextPane();
         areaMensajes.setEditable(false);
-        areaMensajes.setBackground(Color.LIGHT_GRAY);
-        panelMensajes.add(new JScrollPane(areaMensajes), BorderLayout.CENTER);
+        areaMensajes.setBackground(COLOR_BG_VENTANA);
+        areaMensajes.setFont(new Font(FUENTE, Font.PLAIN, 16));
+        areaMensajes.setForeground(COLOR_TXT);
+        areaMensajes.setMargin(new Insets(9, 9, 9, 9));
+        JScrollPane scrollMensajes = new JScrollPane(areaMensajes);
+        scrollMensajes.getViewport().setBackground(COLOR_BG_VENTANA);
+        panelMensajes.add(scrollMensajes, BorderLayout.CENTER);
 
         areaTextoMensaje = new JTextArea(3, 20);
-        areaTextoMensaje.setBackground(Color.LIGHT_GRAY);
+        areaTextoMensaje.setBackground(new Color(36, 46, 58));
+        areaTextoMensaje.setCaretColor(COLOR_TXT);
+        areaTextoMensaje.setForeground(COLOR_TXT);
+        areaTextoMensaje.setFont(new Font(FUENTE, Font.PLAIN, 15));
+        areaTextoMensaje.setBorder(new LineBorder(new Color(65, 80, 100), 1));
+        areaTextoMensaje.setLineWrap(true);
+        areaTextoMensaje.setWrapStyleWord(true);
 
         JPanel panelInput = new JPanel(new BorderLayout());
-        panelInput.setBackground(Color.DARK_GRAY);
+        panelInput.setBackground(COLOR_BG_VENTANA);
         panelInput.setBorder(new LineBorder(Color.BLACK, 2));
         panelInput.add(areaTextoMensaje, BorderLayout.CENTER);
 
         botonEnviar = new JButton("Enviar");
-        botonEnviar.setPreferredSize(new Dimension(80, 30));
+        botonEnviar.setPreferredSize(new Dimension(80, 36));
         botonEnviar.setActionCommand(ENVIARMENSAJE);
-        panelInput.add(botonEnviar, BorderLayout.EAST);
+        botonEnviar.setFont(new Font(FUENTE, Font.BOLD, 14));
+        botonEnviar.setBackground(new Color(52, 122, 70));
+        botonEnviar.setForeground(Color.WHITE);
+        botonEnviar.setFocusPainted(false);
 
+        panelInput.add(botonEnviar, BorderLayout.EAST);
         panelMensajes.add(panelInput, BorderLayout.SOUTH);
 
-        // Agregar paneles a la ventana principal
         add(panelContactos, BorderLayout.WEST);
         add(panelMensajes, BorderLayout.CENTER);
 
-        getContentPane().setBackground(Color.DARK_GRAY);
+        getContentPane().setBackground(COLOR_BG_VENTANA);
 
+        // ENTER envía mensaje
         areaTextoMensaje.getInputMap(JComponent.WHEN_FOCUSED).put(
             KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "enviarMensaje"
         );
@@ -136,7 +137,55 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
             }
         });
 
+        // -------- SELECCIONAR CONTACTOS Y FOCUS AUTOMÁTICO AREA MENSAJE --------
+        listaContactos.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                seleccionarContactoYFocusMensaje(usuario);
+            }
+        });
+
+        // También por teclado (flechas + enter), para más comodidad
+        listaContactos.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER ||
+                    e.getKeyCode() == KeyEvent.VK_SPACE ||
+                    e.getKeyCode() == KeyEvent.VK_UP ||
+                    e.getKeyCode() == KeyEvent.VK_DOWN
+                ) {
+                    seleccionarContactoYFocusMensaje(usuario);
+                }
+            }
+        });
+
         setVisible(true);
+    }
+
+    // Maneja selección de contacto y enfoca área de texto
+    private void seleccionarContactoYFocusMensaje(Usuario usuario) {
+        String seleccionado = listaContactos.getSelectedValue();
+        if (seleccionado != null) {
+            String nombreLimpio = seleccionado.replace(" (nuevo)", "");
+            if (seleccionado.endsWith(" (nuevo)")) {
+                int index = modeloContactos.indexOf(seleccionado);
+                if (index != -1) {
+                    modeloContactos.set(index, nombreLimpio);
+                }
+            }
+            Chat chat = usuario.buscaChat(nombreLimpio);
+            areaMensajes.setText("");
+            if (chat != null) {
+                for (Mensaje m : chat.getMensajes()) {
+                    boolean esPropio = m.getNicknameRemitente().equals(usuario.getNickname());
+                    String timestamp = String.format("%02d:%02d", m.getTimestamp().getHours(), m.getTimestamp().getMinutes());
+                    String texto = timestamp + "   " + m.getContenido();
+                    appendMensaje(texto, esPropio);
+                }
+            }
+            // FOCO DIRECTO AL CAMPO DE TEXTO	
+            SwingUtilities.invokeLater(() -> areaTextoMensaje.requestFocusInWindow());
+        }
     }
 
     public void formarMensaje(Usuario usuario) {
@@ -147,10 +196,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
                 contactoSeleccionado = contactoSeleccionado.replace(" (nuevo)", "");
                 enviarMensaje(contenido, contactoSeleccionado, usuario);
             } else {
-                JOptionPane.showMessageDialog(
-                    this, "Por favor, selecciona un contacto.",
-                    "Error", JOptionPane.ERROR_MESSAGE
-                );
+                showErrorDialog("Por favor, selecciona un contacto.");
             }
         }
     }
@@ -158,7 +204,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
     public void recibirMensaje(Mensaje mensaje, Socket soc, Usuario usuario) {
         String remitente = mensaje.getNicknameRemitente();
         String contactoSeleccionado = listaContactos.getSelectedValue();
-        
+
         Contacto contacto = usuario.buscaContactoPorNickname(remitente);
         if (contacto == null) {
             String ip = soc.getInetAddress().getHostAddress();
@@ -176,13 +222,11 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         usuario.agregarMensaje(mensaje, contacto.getNombre());
 
         if (contactoSeleccionado != null && contactoSeleccionado.replace(" (nuevo)", "").equals(contacto.getNombre())) {
-        	areaMensajes.append(String.format("%02d:%02d %s: %s\n",
-        		    mensaje.getTimestamp().getHours(),
-        		    mensaje.getTimestamp().getMinutes(),
-        		    contacto.getNombre(),
-        		    mensaje.getContenido()));
+            String timestamp = String.format("%02d:%02d", mensaje.getTimestamp().getHours(), mensaje.getTimestamp().getMinutes());
+            String texto = timestamp + "   " + mensaje.getContenido();
+            appendMensaje(texto, false);
         } else {
-            reproducirSonido(); // Usar la ruta relativa dentro del .jar
+            reproducirSonido();
             boolean encontrado = false;
             for (int i = 0; i < modeloContactos.size(); i++) {
                 String nombreLista = modeloContactos.get(i);
@@ -211,14 +255,13 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
                 contactoDestino.getPuerto(),
                 contactoDestino.getNickname()
             );
-            
-            areaMensajes.append(String.format("%02d:%02d %s: %s\n",
-            	    mensaje.getTimestamp().getHours(),
-            	    mensaje.getTimestamp().getMinutes(),
-            	    usuario.getNickname(),
-            	    contenidoMensaje));
+
+            String timestamp = String.format("%02d:%02d", mensaje.getTimestamp().getHours(), mensaje.getTimestamp().getMinutes());
+            String texto = timestamp + "   " + contenidoMensaje;
+            appendMensaje(texto, true);
+
             areaTextoMensaje.setText("");
-            
+
             Socket socket = new Socket("localhost", 10000);
             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
             out.flush();
@@ -227,11 +270,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
             socket.close();
             usuario.agregarMensaje(mensaje, contacto);
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(
-                this,
-                "Error al enviar el mensaje: " + e.getMessage(),
-                "Error", JOptionPane.ERROR_MESSAGE
-            );
+            showErrorDialog("Error al enviar el mensaje: " + e.getMessage());
         }
     }
 
@@ -240,6 +279,9 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         dialog.setSize(400, 300);
         dialog.setLocationRelativeTo(this);
         dialog.setLayout(new BorderLayout());
+
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.setBackground(COLOR_BG_VENTANA);
 
         DefaultListModel<String> modeloListaUsuarios = new DefaultListModel<>();
         for (String nickname : listaNicknames.keySet()) {
@@ -256,85 +298,133 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         }
 
         JList<String> listaUsuarios = new JList<>(modeloListaUsuarios);
+        listaUsuarios.setBackground(COLOR_BG_CONTACTOS);
+        listaUsuarios.setSelectionBackground(new Color(52, 100, 100));
+        listaUsuarios.setFont(new Font(FUENTE, Font.PLAIN, 15));
+        listaUsuarios.setForeground(COLOR_TXT);
+
         JScrollPane scrollPane = new JScrollPane(listaUsuarios);
+        scrollPane.getViewport().setBackground(COLOR_BG_CONTACTOS);
 
         JButton btnAgendar = new JButton("Agendar Usuario");
+        btnAgendar.setFont(new Font(FUENTE, Font.BOLD, 13));
+        btnAgendar.setBackground(new Color(80, 140, 200));
+        btnAgendar.setForeground(Color.WHITE);
+        btnAgendar.setFocusPainted(false);
+
         btnAgendar.addActionListener(e -> {
             String nicknameSeleccionado = listaUsuarios.getSelectedValue();
             if (nicknameSeleccionado != null) {
                 Usuario usuarioSeleccionado = listaNicknames.get(nicknameSeleccionado);
 
-                // Preguntar por un nombre de contacto personalizado
-                String nombrePersonalizado = (String) JOptionPane.showInputDialog(
-                    dialog,
-                    "Ingrese un nombre para agendar a " + nicknameSeleccionado + ":",
-                    "Nuevo nombre de contacto",
-                    JOptionPane.PLAIN_MESSAGE,
-                    null,
-                    null,
-                    nicknameSeleccionado
-                );
-                if (nombrePersonalizado != null && !nombrePersonalizado.trim().isEmpty()) {
-                    // Verificar si ya existe un contacto con ese nombre
-                    Contacto existentePorNombre = usuario.buscaContactoPorNombre(nombrePersonalizado.trim());
-                    if (existentePorNombre != null) {
-                        JOptionPane.showMessageDialog(
-                            dialog, "Ya existe un contacto con ese nombre.",
-                            "Contacto duplicado", JOptionPane.ERROR_MESSAGE
-                        );
-                        return;
-                    }
-                    // Verificar si ya existe un contacto con esa IP y puerto
-                    boolean existePorIpYPuerto = false;
-                    for (Contacto c : usuario.getAgenda().values()) {
-                        if (c.getDireccionIP().equals(usuarioSeleccionado.getIp())
-                                && c.getPuerto() == usuarioSeleccionado.getPuerto()) {
-                            existePorIpYPuerto = true;
-                            break;
+                JDialog inputDialog = new JDialog(dialog, "Nuevo nombre de contacto", true);
+                inputDialog.setSize(360, 150);
+                inputDialog.setLocationRelativeTo(dialog);
+
+                JPanel panelDialog = new JPanel(new GridBagLayout());
+                panelDialog.setBackground(COLOR_BG_VENTANA);
+                GridBagConstraints gbc = new GridBagConstraints();
+                gbc.insets = new Insets(8, 12, 8, 12);
+                gbc.anchor = GridBagConstraints.WEST;
+                gbc.fill = GridBagConstraints.HORIZONTAL;
+
+                JLabel pregunta = new JLabel("Ingrese un nombre para agendar a " + nicknameSeleccionado + ":");
+                pregunta.setFont(new Font(FUENTE, Font.PLAIN, 14));
+                pregunta.setForeground(COLOR_TXT);
+                gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+                panelDialog.add(pregunta, gbc);
+
+                JTextField nombrePersonalizadoFld = new JTextField(nicknameSeleccionado, 18);
+                nombrePersonalizadoFld.setBackground(COLOR_BG_CONTACTOS);
+                nombrePersonalizadoFld.setBorder(new LineBorder(new Color(65,80,100)));
+                nombrePersonalizadoFld.setFont(new Font(FUENTE, Font.PLAIN, 15));
+                nombrePersonalizadoFld.setForeground(COLOR_TXT);
+                gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 2;
+                panelDialog.add(nombrePersonalizadoFld, gbc);
+
+                JButton okBtn = new JButton("OK");
+                JButton cancelBtn = new JButton("Cancelar");
+                okBtn.setFont(new Font(FUENTE, Font.BOLD, 13));
+                okBtn.setBackground(new Color(80, 140, 200));
+                okBtn.setForeground(Color.WHITE);
+                okBtn.setFocusPainted(false);
+
+                cancelBtn.setFont(new Font(FUENTE, Font.BOLD, 13));
+                cancelBtn.setBackground(new Color(120, 120, 120));
+                cancelBtn.setForeground(COLOR_TXT);
+                cancelBtn.setFocusPainted(false);
+
+                gbc.insets = new Insets(16, 12, 8, 12);
+                gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 1;
+                panelDialog.add(okBtn, gbc);
+                gbc.gridx = 1; gbc.gridy = 2;
+                panelDialog.add(cancelBtn, gbc);
+
+                inputDialog.setContentPane(panelDialog);
+
+                okBtn.addActionListener(ev -> {
+                    String nombrePersonalizado = nombrePersonalizadoFld.getText();
+                    if (nombrePersonalizado != null && !nombrePersonalizado.trim().isEmpty()) {
+                        Contacto existentePorNombre = usuario.buscaContactoPorNombre(nombrePersonalizado.trim());
+                        if (existentePorNombre != null) {
+                            showErrorDialog("Ya existe un contacto con ese nombre.");
+                            return;
                         }
-                    }
-                    if (existePorIpYPuerto) {
-                        JOptionPane.showMessageDialog(
-                            dialog, "Ya existe un contacto con esa IP y puerto.",
-                            "Contacto duplicado", JOptionPane.ERROR_MESSAGE
+                        boolean existePorIpYPuerto = false;
+                        for (Contacto c : usuario.getAgenda().values()) {
+                            if (c.getDireccionIP().equals(usuarioSeleccionado.getIp())
+                                    && c.getPuerto() == usuarioSeleccionado.getPuerto()) {
+                                existePorIpYPuerto = true;
+                                break;
+                            }
+                        }
+                        if (existePorIpYPuerto) {
+                            showErrorDialog("Ya existe un contacto con esa IP y puerto.");
+                            return;
+                        }
+                        Contacto nuevoContacto = new Contacto(
+                            nombrePersonalizado.trim(),
+                            usuarioSeleccionado.getIp(),
+                            usuarioSeleccionado.getPuerto(),
+                            usuarioSeleccionado.getNickname()
                         );
-                        return;
+                        Chat nuevoChat = new Chat(nuevoContacto);
+                        usuario.agregarChat(nuevoChat);
+                        usuario.agregarContacto(nuevoContacto);
+                        modeloContactos.addElement(nombrePersonalizado.trim());
+                        listaContactos.setSelectedValue(nombrePersonalizado.trim(), true);
+                        areaTextoMensaje.requestFocusInWindow();
+                        inputDialog.dispose();
+                        dialog.dispose();
+                    } else {
+                        showErrorDialog("Debe ingresar un nombre válido.");
                     }
-                    // Si todo bien, crear el nuevo contacto
-                    Contacto nuevoContacto = new Contacto(
-                        nombrePersonalizado.trim(),
-                        usuarioSeleccionado.getIp(),
-                        usuarioSeleccionado.getPuerto(),
-                        usuarioSeleccionado.getNickname()
-                    );
-                    Chat nuevoChat = new Chat(nuevoContacto);
-                    usuario.agregarChat(nuevoChat);
-                    usuario.agregarContacto(nuevoContacto);
-                    modeloContactos.addElement(nombrePersonalizado.trim());
-                    listaContactos.setSelectedValue(nombrePersonalizado.trim(), true);
-                    areaTextoMensaje.requestFocusInWindow();
-                    dialog.dispose();
-                } else {
-                    JOptionPane.showMessageDialog(
-                        dialog, "Debe ingresar un nombre válido.", "Error", JOptionPane.ERROR_MESSAGE
-                    );
-                }
+                });
+
+                cancelBtn.addActionListener(ev -> inputDialog.dispose());
+
+                inputDialog.setUndecorated(false);
+                inputDialog.setResizable(false);
+                inputDialog.setModal(true);
+                inputDialog.setVisible(true);
+
             } else {
-                JOptionPane.showMessageDialog(
-                    dialog, "Debe seleccionar un usuario de la lista.", "Error", JOptionPane.ERROR_MESSAGE
-                );
+                showErrorDialog("Debe seleccionar un usuario de la lista.");
             }
         });
 
-        JPanel panelBoton = new JPanel();
-        panelBoton.add(btnAgendar);
+        JPanel panelBoton = new JPanel(new BorderLayout());
+        panelBoton.setBackground(COLOR_BG_VENTANA);
+        panelBoton.add(btnAgendar, BorderLayout.SOUTH);
 
-        dialog.add(scrollPane, BorderLayout.CENTER);
-        dialog.add(panelBoton, BorderLayout.SOUTH);
+        contentPanel.add(scrollPane, BorderLayout.CENTER);
+        contentPanel.add(panelBoton, BorderLayout.SOUTH);
+
+        dialog.add(contentPanel, BorderLayout.CENTER);
         dialog.setVisible(true);
     }
 
-    public JTextArea getAreaMensajes() {
+    public JTextPane getAreaMensajes() {
         return areaMensajes;
     }
 
@@ -345,10 +435,9 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
                 System.out.println("Archivo de sonido no encontrado");
                 return;
             }
-            AudioInputStream audioStream = AudioSystem.getAudioInputStream(sonidoURL);
-            Clip clip = AudioSystem.getClip();
+            AudioInputStream audioStream = javax.sound.sampled.AudioSystem.getAudioInputStream(sonidoURL);
+            javax.sound.sampled.Clip clip = javax.sound.sampled.AudioSystem.getClip();
             clip.open(audioStream);
-            // Volumen al 50% (aproximadamente -6 dB)
             FloatControl volume = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
             volume.setValue(-15.0f);
             clip.start();
@@ -357,7 +446,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         }
     }
 
-    public void setAreaMensajes(JTextArea areaMensajes) {
+    public void setAreaMensajes(JTextPane areaMensajes) {
         this.areaMensajes = areaMensajes;
     }
 
@@ -365,5 +454,50 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         this.controlador = c;
         botonEnviar.addActionListener(c);
         btnAgregarContacto.addActionListener(c);
+    }
+
+    private void showErrorDialog(String msg) {
+        JTextArea label = new JTextArea(msg);
+        label.setEditable(false);
+        label.setForeground(COLOR_TXT);
+        label.setBackground(COLOR_BG_VENTANA);
+        label.setFont(new Font(FUENTE, Font.PLAIN, 15));
+        label.setWrapStyleWord(true);
+        label.setLineWrap(true);
+        label.setMargin(new Insets(12, 12, 12, 12));
+        JOptionPane.showMessageDialog(
+            this, label, "Error", JOptionPane.ERROR_MESSAGE
+        );
+    }
+
+    private void appendMensaje(String texto, boolean derecha) {
+        StyledDocument doc = areaMensajes.getStyledDocument();
+        SimpleAttributeSet set = new SimpleAttributeSet();
+
+        StyleConstants.setSpaceAbove(set, 6f);
+        StyleConstants.setSpaceBelow(set, 6f);
+        StyleConstants.setLeftIndent(set, derecha ? 80f : 8f);
+        StyleConstants.setRightIndent(set, derecha ? 8f : 80f);
+
+        if (derecha) {
+            StyleConstants.setAlignment(set, StyleConstants.ALIGN_RIGHT);
+            StyleConstants.setBackground(set, COLOR_BURBUJA_MIO);
+            StyleConstants.setForeground(set, COLOR_TXT);
+        } else {
+            StyleConstants.setAlignment(set, StyleConstants.ALIGN_LEFT);
+            StyleConstants.setBackground(set, COLOR_BURBUJA_OTRO);
+            StyleConstants.setForeground(set, Color.WHITE);
+        }
+
+        StyleConstants.setFontSize(set, 16);
+        StyleConstants.setFontFamily(set, FUENTE);
+
+        try {
+            int len = doc.getLength();
+            doc.insertString(len, texto + "\n", set);
+            doc.setParagraphAttributes(len, texto.length(), set, false);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
