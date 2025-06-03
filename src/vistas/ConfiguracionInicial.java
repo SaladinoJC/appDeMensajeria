@@ -18,6 +18,9 @@ public class ConfiguracionInicial extends JFrame {
     private static final Color COLOR_CUADRO = new Color(28, 38, 48);
     private static final Color COLOR_BTN = new Color(80, 140, 200);
 
+    // NUEVO: opciones de almacenamiento
+    private static final String[] OPCIONES_FORMATO = {"XML", "JSON", "Texto plano"};
+
     public ConfiguracionInicial() {
         setTitle("Configuración Inicial");
         setSize(380, 220);
@@ -99,6 +102,61 @@ public class ConfiguracionInicial extends JFrame {
             return;
         }
 
+        // NUEVO: Revisar si existe archivo de mensajes
+        String[] formatos = {"xml", "json", "txt"};
+        String formatoSeleccionado = null;
+        File archivoExistente = null;
+        int tipoAlmacenamiento = 0; // 0 = indefinido, 1 = XML, 2 = JSON, 3 = TXT
+
+        for (int i = 0; i < formatos.length; i++) {
+            File f = new File(nickname + "." + formatos[i]);
+            if (f.exists()) {
+                archivoExistente = f;
+                formatoSeleccionado = formatos[i];
+                tipoAlmacenamiento = i + 1; // 0=>1, 1=>2, 2=>3
+                break;
+            }
+        }
+
+        if (archivoExistente == null) {
+            // Preguntar formato y crear archivo vacío
+            int opcion = JOptionPane.showOptionDialog(
+                this,
+                "Selecciona el formato de almacenamiento local para tus mensajes:",
+                "Tipo de archivo para mensajes",
+                JOptionPane.DEFAULT_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                OPCIONES_FORMATO,
+                OPCIONES_FORMATO[0]
+            );
+            if (opcion == JOptionPane.CLOSED_OPTION) {
+                // Usuario canceló
+                return;
+            }
+            formatoSeleccionado = formatos[opcion];
+            tipoAlmacenamiento = opcion + 1; // 0=>1, 1=>2, 2=>3
+            File nuevoArchivo = new File(nickname + "." + formatoSeleccionado);
+            try {
+                if (nuevoArchivo.createNewFile()) {
+                    // Opcional: Si quieres poner una plantilla inicial de mensajes vacíos:
+                    if (formatoSeleccionado.equals("xml")) {
+                        try (FileWriter fw = new FileWriter(nuevoArchivo)) {
+                            fw.write("<mensajes></mensajes>");
+                        }
+                    } else if (formatoSeleccionado.equals("json")) {
+                        try (FileWriter fw = new FileWriter(nuevoArchivo)) {
+                            fw.write("[]");
+                        }
+                    }
+                    // para txt lo dejamos vacío
+                }
+            } catch (IOException ex) {
+                showErrorDialog("No se pudo crear el archivo de mensajes: " + ex.getMessage());
+                return;
+            }
+        }
+        // Si llegamos aquí, tipoAlmacenamiento tiene el valor correcto
         InetAddress direccion = null;
         try {
             direccion = InetAddress.getLocalHost();
@@ -106,7 +164,7 @@ public class ConfiguracionInicial extends JFrame {
             e.printStackTrace();
         }
         String ip = direccion.getHostAddress();
-        Usuario usuario = new Usuario(nickname, puerto, ip);
+        Usuario usuario = new Usuario(nickname, puerto, ip, tipoAlmacenamiento);
         dispose();
 
         Socket socket = null;

@@ -7,11 +7,16 @@ import javax.swing.border.LineBorder;
 import javax.swing.text.*;
 import controlador.Controlador;
 import mensajeria.*;
+import persistencia.MensajeDAO;
+import persistencia.MensajeDAOFactory;
+
 import java.awt.*;
 import java.awt.event.*;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @SuppressWarnings("serial")
@@ -23,6 +28,8 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
     private JButton btnAgregarContacto;
     private JButton botonEnviar;
     private Controlador controlador;
+    // Abstract Factory:
+    private MensajeDAO mensajeDAO;
 
     private static final String FUENTE = "Segoe UI";
     private static final Color COLOR_BG_VENTANA = new Color(34, 44, 54);
@@ -38,20 +45,40 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         setLayout(new BorderLayout());
 
         // -------- Panel de contactos --------
-
-        // Panel de la lista y el botón (usa BorderLayout)
         JPanel panelContactos = new JPanel(new BorderLayout());
         panelContactos.setBackground(COLOR_BG_CONTACTOS);
         panelContactos.setBorder(new LineBorder(Color.BLACK, 2));
 
+        // --------- INICIALIZACIÓN MENSAJE DAO ---------
+        int tipo = usuario.getTipoAlmacenamiento();
+        String extension = tipo == 1 ? ".xml" : tipo == 2 ? ".json" : ".txt";
+        String nombreArchivo = usuario.getNickname() + extension;
+        this.mensajeDAO = MensajeDAOFactory.getFactory(tipo).crearMensajeDAO(nombreArchivo);
+        // ------------------------------------------------
         modeloContactos = new DefaultListModel<>();
+        try {
+            List<Contacto> agenda = mensajeDAO.cargarContactos();
+            for (Contacto c : agenda) usuario.agregarContacto(c);
+
+            modeloContactos.clear();
+            for (Contacto c : usuario.getAgenda().values()) {
+                modeloContactos.addElement(c.getNombre());
+            }
+            for (Contacto c : usuario.getAgenda().values()) {
+                if (usuario.buscaChat(c.getNombre()) == null) {
+                    usuario.agregarChat(new Chat(c));
+                }
+            }
+        } catch (Exception e) {
+            showErrorDialog("No se pudo cargar la agenda: " + e.getMessage());
+        }
         listaContactos = new JList<>(modeloContactos);
         listaContactos.setBackground(COLOR_BG_CONTACTOS);
-        listaContactos.setForeground(COLOR_TXT); // FORZADO: fuente blanca
+        listaContactos.setForeground(COLOR_TXT);
         listaContactos.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index,
-                    boolean isSelected, boolean cellHasFocus) {
+                                                          boolean isSelected, boolean cellHasFocus) {
                 JLabel label = (JLabel)super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 label.setForeground(COLOR_TXT);
                 label.setBackground(isSelected ? new Color(52, 72, 100) : COLOR_BG_CONTACTOS);
@@ -62,7 +89,6 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         });
         panelContactos.add(new JScrollPane(listaContactos), BorderLayout.CENTER);
 
-        // Botón todo abajo:
         btnAgregarContacto = new JButton("Agregar Contacto");
         btnAgregarContacto.setActionCommand(ABRIRVENTAGREGARCONTACTO);
         btnAgregarContacto.setFont(new Font(FUENTE, Font.BOLD, 13));
@@ -145,14 +171,13 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
             }
         });
 
-        // También por teclado (flechas + enter), para más comodidad
         listaContactos.addKeyListener(new KeyAdapter() {
             @Override
             public void keyReleased(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER ||
-                    e.getKeyCode() == KeyEvent.VK_SPACE ||
-                    e.getKeyCode() == KeyEvent.VK_UP ||
-                    e.getKeyCode() == KeyEvent.VK_DOWN
+                        e.getKeyCode() == KeyEvent.VK_SPACE ||
+                        e.getKeyCode() == KeyEvent.VK_UP ||
+                        e.getKeyCode() == KeyEvent.VK_DOWN
                 ) {
                     seleccionarContactoYFocusMensaje(usuario);
                 }
@@ -162,7 +187,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         setVisible(true);
     }
 
-    // Maneja selección de contacto y enfoca área de texto
+    // Cargar y mostrar mensajes del chat al abrir contacto
     private void seleccionarContactoYFocusMensaje(Usuario usuario) {
         String seleccionado = listaContactos.getSelectedValue();
         if (seleccionado != null) {
@@ -173,9 +198,20 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
                     modeloContactos.set(index, nombreLimpio);
                 }
             }
+            // ----<<< PERSISTENCIA: CARGAR MENSAJES >>>---
             Chat chat = usuario.buscaChat(nombreLimpio);
             areaMensajes.setText("");
             if (chat != null) {
+                // SOLO cargar de disco si el chat está vacío (nunca lo han abierto en esta sesión)
+                if (chat.getMensajes().isEmpty()) {
+                    try {
+                        List<Mensaje> mensajes = mensajeDAO.cargarMensajes(chat.getContacto().getNombre());
+                        chat.setMensajes(mensajes); // actualiza Chat solo vacío
+                    } catch (Exception e) {
+                        showErrorDialog("No se pudieron cargar los mensajes de " + nombreLimpio + " : " + e.getMessage());
+                    }
+                }
+                // Mostrar SIEMPRE todos los mensajes actualmente en memoria
                 for (Mensaje m : chat.getMensajes()) {
                     boolean esPropio = m.getNicknameRemitente().equals(usuario.getNickname());
                     String timestamp = String.format("%02d:%02d", m.getTimestamp().getHours(), m.getTimestamp().getMinutes());
@@ -183,8 +219,48 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
                     appendMensaje(texto, esPropio);
                 }
             }
-            // FOCO DIRECTO AL CAMPO DE TEXTO	
             SwingUtilities.invokeLater(() -> areaTextoMensaje.requestFocusInWindow());
+        }
+    }
+
+    // Maneja el envío e incluye guardado
+    private void enviarMensaje(String contenidoMensaje, String contacto, Usuario usuario) {
+        try {
+            Contacto contactoDestino = usuario.buscaContactoPorNombre(contacto);
+            Mensaje mensaje = new Mensaje(
+                    contenidoMensaje,
+                    usuario.getNickname(),
+                    usuario.getPuerto(),
+                    contactoDestino.getDireccionIP(),
+                    contactoDestino.getPuerto(),
+                    contactoDestino.getNickname()
+            );
+
+            String timestamp = String.format("%02d:%02d", mensaje.getTimestamp().getHours(), mensaje.getTimestamp().getMinutes());
+            String texto = timestamp + "   " + contenidoMensaje;
+            appendMensaje(texto, true);
+
+            areaTextoMensaje.setText("");
+
+            Socket socket = new Socket("localhost", 10000);
+            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+            out.flush();
+            out.writeObject(mensaje);
+            out.close();
+            socket.close();
+
+            usuario.agregarMensaje(mensaje, contacto);
+
+            // <<<--- Guardar luego de enviar --->
+            Chat chat = usuario.buscaChat(contacto);
+            if (chat != null) try {
+                mensajeDAO.guardarMensajes(chat.getContacto().getNombre(), chat.getMensajes());
+            } catch (Exception ex) {
+                showErrorDialog("No se pudo guardar el mensaje (local): " + ex.getMessage());
+            }
+
+        } catch (Exception e) {
+            showErrorDialog("Error al enviar el mensaje: " + e.getMessage());
         }
     }
 
@@ -201,6 +277,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         }
     }
 
+    // Maneja recepción de mensaje e incluye guardado
     public void recibirMensaje(Mensaje mensaje, Socket soc, Usuario usuario) {
         String remitente = mensaje.getNicknameRemitente();
         String contactoSeleccionado = listaContactos.getSelectedValue();
@@ -211,6 +288,15 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
             int puerto = mensaje.getPuertoRemitente();
             contacto = new Contacto(remitente, ip, puerto, mensaje.getNicknameRemitente());
             usuario.agregarContacto(contacto);
+            if (modeloContactos.indexOf(contacto.getNombre()) == -1) {
+                modeloContactos.addElement(contacto.getNombre());
+                // Opcional: seleccionarlo o hacerlo visible si gustas
+            }
+            try {
+                mensajeDAO.guardarContactos(new ArrayList<>(usuario.getAgenda().values()));
+            } catch (Exception ex) {
+                showErrorDialog("No se pudo guardar la agenda: " + ex.getMessage());
+            }
         }
 
         Chat chat = usuario.buscaChat(contacto.getNombre());
@@ -218,8 +304,23 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
             chat = new Chat(contacto);
             usuario.agregarChat(chat);
         }
-
+        
+        if (chat.getMensajes().isEmpty()) {
+            try {
+                List<Mensaje> mensajesHist = mensajeDAO.cargarMensajes(contacto.getNombre());
+                chat.setMensajes(mensajesHist);
+            } catch (Exception e) {
+                showErrorDialog("No se pudieron cargar mensajes históricos: " + e.getMessage());
+            }
+        }
         usuario.agregarMensaje(mensaje, contacto.getNombre());
+
+        // Guardar mensajes del chat tras recibir
+        try {
+            mensajeDAO.guardarMensajes(chat.getContacto().getNombre(), chat.getMensajes());
+        } catch (Exception ex) {
+            showErrorDialog("No se pudo guardar el mensaje recibido: " + ex.getMessage());
+        }
 
         if (contactoSeleccionado != null && contactoSeleccionado.replace(" (nuevo)", "").equals(contacto.getNombre())) {
             String timestamp = String.format("%02d:%02d", mensaje.getTimestamp().getHours(), mensaje.getTimestamp().getMinutes());
@@ -244,35 +345,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         }
     }
 
-    private void enviarMensaje(String contenidoMensaje, String contacto, Usuario usuario) {
-        try {
-            Contacto contactoDestino = usuario.buscaContactoPorNombre(contacto);
-            Mensaje mensaje = new Mensaje(
-                contenidoMensaje,
-                usuario.getNickname(),
-                usuario.getPuerto(),
-                contactoDestino.getDireccionIP(),
-                contactoDestino.getPuerto(),
-                contactoDestino.getNickname()
-            );
-
-            String timestamp = String.format("%02d:%02d", mensaje.getTimestamp().getHours(), mensaje.getTimestamp().getMinutes());
-            String texto = timestamp + "   " + contenidoMensaje;
-            appendMensaje(texto, true);
-
-            areaTextoMensaje.setText("");
-
-            Socket socket = new Socket("localhost", 10000);
-            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-            out.flush();
-            out.writeObject(mensaje);
-            out.close();
-            socket.close();
-            usuario.agregarMensaje(mensaje, contacto);
-        } catch (Exception e) {
-            showErrorDialog("Error al enviar el mensaje: " + e.getMessage());
-        }
-    }
+    // --- Resto de la clase igual que tu versión original, sin cambios ---
 
     public void abrirVentanaAgregarContacto(Map<String, Usuario> listaNicknames, Usuario usuario) {
         JDialog dialog = new JDialog(this, "Directorio de Usuarios", true);
@@ -394,6 +467,11 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
                         modeloContactos.addElement(nombrePersonalizado.trim());
                         listaContactos.setSelectedValue(nombrePersonalizado.trim(), true);
                         areaTextoMensaje.requestFocusInWindow();
+                        try {
+                            mensajeDAO.guardarContactos(new ArrayList<>(usuario.getAgenda().values()));
+                        } catch (Exception ex) {
+                            showErrorDialog("No se pudo guardar la agenda: " + ex.getMessage());
+                        }
                         inputDialog.dispose();
                         dialog.dispose();
                     } else {
@@ -423,11 +501,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         dialog.add(contentPanel, BorderLayout.CENTER);
         dialog.setVisible(true);
     }
-
-    public JTextPane getAreaMensajes() {
-        return areaMensajes;
-    }
-
+    public JTextPane getAreaMensajes() { return areaMensajes; }
     public void reproducirSonido() {
         try {
             URL sonidoURL = getClass().getClassLoader().getResource("sonido.wav");
@@ -445,17 +519,12 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
             e.printStackTrace();
         }
     }
-
-    public void setAreaMensajes(JTextPane areaMensajes) {
-        this.areaMensajes = areaMensajes;
-    }
-
+    public void setAreaMensajes(JTextPane areaMensajes) { this.areaMensajes = areaMensajes; }
     public void setControlador(Controlador c) {
         this.controlador = c;
         botonEnviar.addActionListener(c);
         btnAgregarContacto.addActionListener(c);
     }
-
     private void showErrorDialog(String msg) {
         JTextArea label = new JTextArea(msg);
         label.setEditable(false);
@@ -465,20 +534,15 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         label.setWrapStyleWord(true);
         label.setLineWrap(true);
         label.setMargin(new Insets(12, 12, 12, 12));
-        JOptionPane.showMessageDialog(
-            this, label, "Error", JOptionPane.ERROR_MESSAGE
-        );
+        JOptionPane.showMessageDialog(this, label, "Error", JOptionPane.ERROR_MESSAGE);
     }
-
     private void appendMensaje(String texto, boolean derecha) {
         StyledDocument doc = areaMensajes.getStyledDocument();
         SimpleAttributeSet set = new SimpleAttributeSet();
-
         StyleConstants.setSpaceAbove(set, 6f);
         StyleConstants.setSpaceBelow(set, 6f);
         StyleConstants.setLeftIndent(set, derecha ? 80f : 8f);
         StyleConstants.setRightIndent(set, derecha ? 8f : 80f);
-
         if (derecha) {
             StyleConstants.setAlignment(set, StyleConstants.ALIGN_RIGHT);
             StyleConstants.setBackground(set, COLOR_BURBUJA_MIO);
@@ -488,10 +552,8 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
             StyleConstants.setBackground(set, COLOR_BURBUJA_OTRO);
             StyleConstants.setForeground(set, Color.WHITE);
         }
-
         StyleConstants.setFontSize(set, 16);
         StyleConstants.setFontFamily(set, FUENTE);
-
         try {
             int len = doc.getLength();
             doc.insertString(len, texto + "\n", set);

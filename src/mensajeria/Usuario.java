@@ -11,13 +11,15 @@ public class Usuario implements Serializable {
     private String direccionIP;
     private HashMap<String, Contacto> agenda;
     private HashMap<String, Chat> conversaciones;
+    private int tipoAlmacenamiento; // 1:XML, 2:JSON, 3:TXT
 
-    public Usuario(String nickname, int puerto, String direccionIP) {
+    public Usuario(String nickname, int puerto, String direccionIP, int tipo) {
         this.nickname = nickname;
         this.direccionIP = direccionIP;
         this.puerto = puerto;
         this.agenda = new HashMap<>();
         this.conversaciones = new HashMap<>();
+        this.tipoAlmacenamiento = tipo;
     }
 
     public void agregarContacto(Contacto contacto) {
@@ -65,6 +67,9 @@ public class Usuario implements Serializable {
     public void setPuerto(int puerto) {
         this.puerto = puerto;
     }
+    
+    public int getTipoAlmacenamiento() { return tipoAlmacenamiento; }
+    public void setTipoAlmacenamiento(int tipo) { this.tipoAlmacenamiento = tipo; }
 
     public String getIp() {
         return direccionIP;

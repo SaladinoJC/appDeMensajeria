@@ -58,6 +58,7 @@ public class Controlador implements ActionListener {
 
     private void abrirVentanaAgregarContacto() {
         try (
+        	  
         	  Socket socket = new Socket("localhost", 10002);
         	  ObjectInputStream in = new ObjectInputStream(socket.getInputStream())
             ) {
@@ -75,5 +76,7 @@ public class Controlador implements ActionListener {
             );
         }
     }
+
+
 
 }

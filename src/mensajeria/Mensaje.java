@@ -1,6 +1,7 @@
 package mensajeria;
 import java.io.Serializable;
 import java.util.*;
+
 public class Mensaje implements Serializable{
 	private String contenido;
 	private String nicknameRemitente;
@@ -26,6 +27,9 @@ public class Mensaje implements Serializable{
     public String getIpDestinatario() { return ipdestinatario; }
     public String getNicknameRemitente() { return nicknameRemitente; }
     public Date getTimestamp() { return timestamp; }
+	public void setTimestamp(Date timestamp) {
+		this.timestamp = timestamp;
+	}
 	@Override
 	public String toString() {
 		return "contenido= " + contenido + ", remitente= " + nicknameRemitente + ", puertoRemitente= " + puertoRemitente

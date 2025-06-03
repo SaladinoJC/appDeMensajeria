@@ -1,15 +1,21 @@
 package mensajeria;
+import java.io.Serializable;
 import java.util.*;
-public class Chat {
+import java.util.List;
+public class Chat implements Serializable{
 	private Contacto contacto;
-    private LinkedList<Mensaje> mensajes;
+    private List<Mensaje> mensajes;
     public Chat(Contacto contacto) {
         this.contacto = contacto;
-        this.mensajes = new LinkedList<>();
+        this.mensajes = new ArrayList<>();
     }
     public void agregarMensaje(Mensaje mensaje) {
         mensajes.addLast(mensaje);;
     }
-    public LinkedList<Mensaje> getMensajes() { return mensajes; }
+    
+    public void setMensajes(List<Mensaje> mensajes) {
+        this.mensajes = mensajes != null ? mensajes : new ArrayList<>();
+    }
+    public List<Mensaje> getMensajes() { return mensajes; }
     public Contacto getContacto() { return contacto; }
 }
