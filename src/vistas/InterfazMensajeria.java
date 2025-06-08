@@ -18,7 +18,10 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
+import cifrado.CifradoStrategy;
+import cifrado.AesStrategy;
+import cifrado.DesStrategy;
+import cifrado.TripleDesStrategy;
 @SuppressWarnings("serial")
 public class InterfazMensajeria extends JFrame implements InterfazVista {
     private DefaultListModel<String> modeloContactos;
@@ -37,8 +40,10 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
     private static final Color COLOR_BURBUJA_MIO = new Color(42, 117, 89);
     private static final Color COLOR_BURBUJA_OTRO = new Color(49, 58, 72);
     private static final Color COLOR_TXT = new Color(255, 255, 255);
+    private final CifradoStrategy cifradoStrategy;      // MODIFICAR PARA CAMBIAR EL ALGORITMO DE CIFRADO
 
-    public InterfazMensajeria(Usuario usuario) {
+    public InterfazMensajeria(Usuario usuario, String algoritmo, String claveUsuario) {
+    	this.cifradoStrategy = crearCifradoStrategy(algoritmo, claveUsuario);
         setTitle(usuario.getNickname() + " - Puerto " + usuario.getPuerto());
         setSize(600, 450);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -224,43 +229,43 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
     }
 
     // Maneja el envío e incluye guardado
-    private void enviarMensaje(String contenidoMensaje, String contacto, Usuario usuario) {
+    private void enviarMensaje(String textoPlano, String contacto, Usuario usuario) {
         try {
-            Contacto contactoDestino = usuario.buscaContactoPorNombre(contacto);
-            Mensaje mensaje = new Mensaje(
-                    contenidoMensaje,
+            Contacto destino = usuario.buscaContactoPorNombre(contacto);
+            if (destino == null) { showErrorDialog("Contacto no encontrado"); return; }
+
+            /* 1. Cifrar */
+            String cifrado = cifradoStrategy.cifrar(
+                    textoPlano);           // receptor
+
+            /* 2. Armar objeto Mensaje con TEXTO CIFRADO */
+            Mensaje m = new Mensaje(
+                    cifrado,
                     usuario.getNickname(),
                     usuario.getPuerto(),
-                    contactoDestino.getDireccionIP(),
-                    contactoDestino.getPuerto(),
-                    contactoDestino.getNickname()
-            );
-
-            String timestamp = String.format("%02d:%02d", mensaje.getTimestamp().getHours(), mensaje.getTimestamp().getMinutes());
-            String texto = timestamp + "   " + contenidoMensaje;
-            appendMensaje(texto, true);
-
+                    destino.getDireccionIP(),
+                    destino.getPuerto(),
+                    destino.getNickname());
+            System.out.println(m);
+            /* 3. UI y persistencia en CLARO */
+            String ts = String.format("%02d:%02d", m.getTimestamp().getHours(), m.getTimestamp().getMinutes());
+            appendMensaje(ts + "   " + textoPlano, true);
             areaTextoMensaje.setText("");
 
-            Socket socket = new Socket("localhost", 10000);
-            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-            out.flush();
-            out.writeObject(mensaje);
-            out.close();
-            socket.close();
-
-            usuario.agregarMensaje(mensaje, contacto);
-
-            // <<<--- Guardar luego de enviar --->
-            Chat chat = usuario.buscaChat(contacto);
-            if (chat != null) try {
-                mensajeDAO.guardarMensajes(chat.getContacto().getNombre(), chat.getMensajes());
-            } catch (Exception ex) {
-                showErrorDialog("No se pudo guardar el mensaje (local): " + ex.getMessage());
+            try (Socket s = new Socket("localhost", 10000);
+                 ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream())) {
+                out.flush();
+                out.writeObject(m);
             }
 
+            // Guardamos el plano
+            m.setContenido(textoPlano);
+            usuario.agregarMensaje(m, contacto);
+            Chat chat = usuario.buscaChat(contacto);
+            if (chat != null) mensajeDAO.guardarMensajes(chat.getContacto().getNombre(), chat.getMensajes());
+
         } catch (Exception e) {
-            showErrorDialog("Error al enviar el mensaje: " + e.getMessage());
+            showErrorDialog("Error al enviar: " + e.getMessage());
         }
     }
 
@@ -277,20 +282,40 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         }
     }
 
-    // Maneja recepción de mensaje e incluye guardado
-    public void recibirMensaje(Mensaje mensaje, Socket soc, Usuario usuario) {
+
+    /************************************************************
+     * MÉTODO recibirMensaje – ahora descifra apenas llega
+     ************************************************************/
+    public void recibirMensaje(Mensaje mensaje,
+                               Socket soc,
+                               Usuario usuario) {
+    	try {
+            /* 1. Descifrar al llegar */
+            String plano = cifradoStrategy.descifrar(
+                    mensaje.getContenido());    // emisor
+            mensaje.setContenido(plano);
+        } catch (Exception e) {
+            showErrorDialog("No se pudo descifrar: probablemente tú y tu contacto usan claves o métodos distintos.\n\n");
+            return;
+        }
+            
+
+        /*------------------------------------------------------
+         * 3. ***Todo lo que sigue es tu lógica original***
+         *    (agenda, chats, persistencia, UI, notificaciones…)
+         *-----------------------------------------------------*/
         String remitente = mensaje.getNicknameRemitente();
         String contactoSeleccionado = listaContactos.getSelectedValue();
 
         Contacto contacto = usuario.buscaContactoPorNickname(remitente);
         if (contacto == null) {
-            String ip = soc.getInetAddress().getHostAddress();
-            int puerto = mensaje.getPuertoRemitente();
-            contacto = new Contacto(remitente, ip, puerto, mensaje.getNicknameRemitente());
+            String ip     = soc.getInetAddress().getHostAddress();
+            int    puerto = mensaje.getPuertoRemitente();
+            contacto = new Contacto(remitente, ip, puerto, remitente);
             usuario.agregarContacto(contacto);
+
             if (modeloContactos.indexOf(contacto.getNombre()) == -1) {
                 modeloContactos.addElement(contacto.getNombre());
-                // Opcional: seleccionarlo o hacerlo visible si gustas
             }
             try {
                 mensajeDAO.guardarContactos(new ArrayList<>(usuario.getAgenda().values()));
@@ -304,46 +329,56 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
             chat = new Chat(contacto);
             usuario.agregarChat(chat);
         }
-        
+
         if (chat.getMensajes().isEmpty()) {
             try {
-                List<Mensaje> mensajesHist = mensajeDAO.cargarMensajes(contacto.getNombre());
-                chat.setMensajes(mensajesHist);
+                List<Mensaje> historicos =
+                        mensajeDAO.cargarMensajes(contacto.getNombre());
+                chat.setMensajes(historicos);
             } catch (Exception e) {
-                showErrorDialog("No se pudieron cargar mensajes históricos: " + e.getMessage());
+                showErrorDialog("No se pudieron cargar mensajes históricos: "
+                                + e.getMessage());
             }
         }
         usuario.agregarMensaje(mensaje, contacto.getNombre());
 
-        // Guardar mensajes del chat tras recibir
         try {
-            mensajeDAO.guardarMensajes(chat.getContacto().getNombre(), chat.getMensajes());
+            mensajeDAO.guardarMensajes(chat.getContacto().getNombre(),
+                                       chat.getMensajes());
         } catch (Exception ex) {
-            showErrorDialog("No se pudo guardar el mensaje recibido: " + ex.getMessage());
+            showErrorDialog("No se pudo guardar el mensaje recibido: "
+                            + ex.getMessage());
         }
 
-        if (contactoSeleccionado != null && contactoSeleccionado.replace(" (nuevo)", "").equals(contacto.getNombre())) {
-            String timestamp = String.format("%02d:%02d", mensaje.getTimestamp().getHours(), mensaje.getTimestamp().getMinutes());
-            String texto = timestamp + "   " + mensaje.getContenido();
-            appendMensaje(texto, false);
+        /*------------- Mostrar o notificar en UI -------------*/
+        if (contactoSeleccionado != null
+                && contactoSeleccionado.replace(" (nuevo)", "")
+                                       .equals(contacto.getNombre())) {
+            String timestamp = String.format("%02d:%02d",
+                                mensaje.getTimestamp().getHours(),
+                                mensaje.getTimestamp().getMinutes());
+            String textoUI = timestamp + "   " + mensaje.getContenido();
+            appendMensaje(textoUI, false);
         } else {
             reproducirSonido();
-            boolean encontrado = false;
+            boolean marcado = false;
             for (int i = 0; i < modeloContactos.size(); i++) {
                 String nombreLista = modeloContactos.get(i);
-                if (nombreLista.replace(" (nuevo)", "").equals(contacto.getNombre())) {
+                if (nombreLista.replace(" (nuevo)", "")
+                               .equals(contacto.getNombre())) {
                     if (!nombreLista.contains("(nuevo)")) {
                         modeloContactos.set(i, contacto.getNombre() + " (nuevo)");
                     }
-                    encontrado = true;
+                    marcado = true;
                     break;
                 }
             }
-            if (!encontrado) {
+            if (!marcado) {
                 modeloContactos.addElement(contacto.getNombre() + " (nuevo)");
             }
         }
     }
+
 
     // --- Resto de la clase igual que tu versión original, sin cambios ---
 
@@ -526,6 +561,13 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         btnAgregarContacto.addActionListener(c);
     }
     private void showErrorDialog(String msg) {
+        JDialog dialog = new JDialog(this, "Error", true);
+        dialog.setUndecorated(false);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.setBackground(COLOR_BG_VENTANA);
+
         JTextArea label = new JTextArea(msg);
         label.setEditable(false);
         label.setForeground(COLOR_TXT);
@@ -533,8 +575,68 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         label.setFont(new Font(FUENTE, Font.PLAIN, 15));
         label.setWrapStyleWord(true);
         label.setLineWrap(true);
-        label.setMargin(new Insets(12, 12, 12, 12));
-        JOptionPane.showMessageDialog(this, label, "Error", JOptionPane.ERROR_MESSAGE);
+        label.setBorder(BorderFactory.createEmptyBorder(18, 24, 10, 24));
+        label.setFocusable(false);
+
+        // Si el mensaje puede ser muy largo, emplea JScrollPane.
+        JScrollPane scroll = new JScrollPane(label);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.setBackground(COLOR_BG_VENTANA);
+        scroll.getViewport().setBackground(COLOR_BG_VENTANA);
+
+        contentPanel.add(scroll, BorderLayout.CENTER);
+
+        JButton cerrar = new JButton("Cerrar");
+        cerrar.setBackground(new Color(80, 140, 200));
+        cerrar.setForeground(Color.WHITE);
+        cerrar.setFont(new Font(FUENTE, Font.BOLD, 13));
+        cerrar.setFocusPainted(false);
+        cerrar.setBorder(BorderFactory.createEmptyBorder(7, 18, 7, 18));
+        cerrar.addActionListener(e -> dialog.dispose());
+
+        JPanel panelBoton = new JPanel();
+        panelBoton.setBackground(COLOR_BG_VENTANA);
+        panelBoton.add(cerrar);
+
+        contentPanel.add(panelBoton, BorderLayout.SOUTH);
+
+        dialog.setContentPane(contentPanel);
+
+        // Tamaño preferido: ancho y alto cómodos (puedes ajustar a tu gusto)
+        int ancho = 460;
+        int alto = 220;
+        dialog.setSize(ancho, alto);
+
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    private CifradoStrategy crearCifradoStrategy(String algoritmo, String claveUsuario) {
+        switch(algoritmo) {
+            case "AES":
+    		try {
+    			return new AesStrategy(claveUsuario);
+    		} catch (Exception e) {
+    			// TODO Auto-generated catch block
+    			e.printStackTrace();
+    		}
+            case "DES":
+    		try {
+    			return new DesStrategy(claveUsuario);
+    		} catch (Exception e) {
+    			// TODO Auto-generated catch block
+    			e.printStackTrace();
+    		}
+            case "Triple DES":
+    		try {
+    			return new TripleDesStrategy(claveUsuario);
+    		} catch (Exception e) {
+    			// TODO Auto-generated catch block
+    			e.printStackTrace();
+    		}
+            default:
+                throw new IllegalArgumentException("Algoritmo no soportado: " + algoritmo);
+        }
     }
     private void appendMensaje(String texto, boolean derecha) {
         StyledDocument doc = areaMensajes.getStyledDocument();
@@ -561,5 +663,4 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
-}
+    }}

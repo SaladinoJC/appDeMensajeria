@@ -23,7 +23,10 @@ public class Mensaje implements Serializable{
     public int getPuertoRemitente() { return puertoRemitente;}    
     public int getPuertoDestinatario() { return puertoDestinatario;}
     public String getContenido() { return contenido; }
-    public String getNicknameDestinatario() { return nicknameDestinatario; }
+    public void setContenido(String contenido) {
+		this.contenido = contenido;
+	}
+	public String getNicknameDestinatario() { return nicknameDestinatario; }
     public String getIpDestinatario() { return ipdestinatario; }
     public String getNicknameRemitente() { return nicknameRemitente; }
     public Date getTimestamp() { return timestamp; }

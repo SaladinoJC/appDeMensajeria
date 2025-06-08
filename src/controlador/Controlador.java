@@ -14,16 +14,29 @@ import vistas.InterfazVista;
 
 public class Controlador implements ActionListener {
 
+    private static Controlador instanciaUnica = null;
     private InterfazMensajeria vistaPrincipal;
     private Usuario usuario;
     private Thread hiloReceptorMensajes;
     private boolean escuchando = true;
 
-    public Controlador(InterfazMensajeria vistaPrincipal, Usuario usuario) {
+    // Constructor PRIVADO
+    private Controlador(InterfazMensajeria vistaPrincipal, Usuario usuario) {
         this.usuario = usuario;
         this.vistaPrincipal = vistaPrincipal;
-        // Iniciar el servidor en un hilo separado
         this.iniciarRecibeMensajes();
+    }
+
+    // PATRÓN SINGLETON: único punto de acceso
+    public static synchronized Controlador getInstance(InterfazMensajeria vistaPrincipal, Usuario usuario) {
+        if (instanciaUnica == null) {
+            instanciaUnica = new Controlador(vistaPrincipal, usuario);
+        } else {
+            // Solo si necesitas actualizar la vista y usuario en reuso:
+            instanciaUnica.vistaPrincipal = vistaPrincipal;
+            instanciaUnica.usuario = usuario;
+        }
+        return instanciaUnica;
     }
 
     // Método para iniciar el hilo que escucha mensajes
@@ -41,7 +54,7 @@ public class Controlador implements ActionListener {
                     }
                 }
             } catch (Exception e) {
-                if (escuchando) e.printStackTrace(); // Solo si no fue cerrado intencionalmente
+                if (escuchando) e.printStackTrace();
             }
         });
         hiloReceptorMensajes.start();
@@ -58,11 +71,9 @@ public class Controlador implements ActionListener {
 
     private void abrirVentanaAgregarContacto() {
         try (
-        	  
-        	  Socket socket = new Socket("localhost", 10002);
-        	  ObjectInputStream in = new ObjectInputStream(socket.getInputStream())
-            ) {
-
+            Socket socket = new Socket("localhost", 10002);
+            ObjectInputStream in = new ObjectInputStream(socket.getInputStream())
+        ) {
             @SuppressWarnings("unchecked")
             HashMap<String, Usuario> directorioUsuarios = (HashMap<String, Usuario>) in.readObject();
             this.vistaPrincipal.abrirVentanaAgregarContacto(directorioUsuarios, this.usuario);
@@ -76,7 +87,4 @@ public class Controlador implements ActionListener {
             );
         }
     }
-
-
-
 }
