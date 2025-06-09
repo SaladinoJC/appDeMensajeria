@@ -1,0 +1,3 @@
+<contactos>
+	<contacto nombre="Juan" nickname="Juan" direccionIP="26.140.157.9" puerto="12345" />
+</contactos>

@@ -186,6 +186,7 @@ public class ConfiguracionInicial extends JFrame {
 
         try {
             InterfazMensajeria vista = new InterfazMensajeria(usuario, algoritmoElegido, clave);
+            vista.agregarObservador(usuario);
             Controlador controlador = Controlador.getInstance(vista, usuario);
             vista.setControlador(controlador);
             vista.setVisible(true);

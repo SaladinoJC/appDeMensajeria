@@ -4,7 +4,7 @@ import java.io.*;
 import java.util.*;
 
 @SuppressWarnings("serial")
-public class Usuario implements Serializable {
+public class Usuario implements Serializable, Observer {
 	private String nickname;
 	private int puerto;
 	private String direccionIP;
@@ -28,6 +28,15 @@ public class Usuario implements Serializable {
 	public void agregarChat(Chat chat) {
 	    conversaciones.put(chat.getContacto().getNombre(), chat);
 	}
+	
+	
+	@Override
+    public void actualizar(String tipo, Object dato) {
+        if( tipo.equalsIgnoreCase("NUEVO_CONTACTO") ) {
+                Contacto contacto = (Contacto) dato;
+                agregarContacto(contacto);
+        }
+    }
 
 	public void agregarMensaje(Mensaje mensaje, String contactoDestino) {
 	    Chat chat = conversaciones.get(contactoDestino);

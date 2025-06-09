@@ -1,0 +1,5 @@
+<mensajes>
+	<chat id="Juan">
+		<mensaje remitente="Tomi" puertoRemitente="12346" ipdestinatario="26.140.157.9" puertoDestinatario="12345" nicknameDestinatario="Juan" contenido="Holu" timestamp="1749429719653" />
+	</chat>
+</mensajes>

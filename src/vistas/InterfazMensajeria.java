@@ -23,7 +23,8 @@ import cifrado.AesStrategy;
 import cifrado.DesStrategy;
 import cifrado.TripleDesStrategy;
 @SuppressWarnings("serial")
-public class InterfazMensajeria extends JFrame implements InterfazVista {
+public class InterfazMensajeria extends JFrame implements InterfazVista, Observable {
+	private List<Observer> observadores = new ArrayList<>();
     private DefaultListModel<String> modeloContactos;
     private JList<String> listaContactos;
     private JTextPane areaMensajes;
@@ -63,7 +64,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
         modeloContactos = new DefaultListModel<>();
         try {
             List<Contacto> agenda = mensajeDAO.cargarContactos();
-            for (Contacto c : agenda) usuario.agregarContacto(c);
+            for (Contacto c : agenda) notificarObservadores("NUEVO_CONTACTO", c);
 
             modeloContactos.clear();
             for (Contacto c : usuario.getAgenda().values()) {
@@ -191,6 +192,24 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
 
         setVisible(true);
     }
+    
+    
+    @Override
+    public void agregarObservador(Observer o) {
+        observadores.add(o);
+    }
+
+    @Override
+    public void eliminarObservador(Observer o) {
+        observadores.remove(o);
+    }
+
+    @Override
+    public void notificarObservadores(String tipo, Object dato) {
+        for(Observer o : observadores) {
+            o.actualizar(tipo, dato);
+        }
+    }
 
     // Cargar y mostrar mensajes del chat al abrir contacto
     private void seleccionarContactoYFocusMensaje(Usuario usuario) {
@@ -312,7 +331,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
             String ip     = soc.getInetAddress().getHostAddress();
             int    puerto = mensaje.getPuertoRemitente();
             contacto = new Contacto(remitente, ip, puerto, remitente);
-            usuario.agregarContacto(contacto);
+            notificarObservadores("NUEVO_CONTACTO", contacto);
 
             if (modeloContactos.indexOf(contacto.getNombre()) == -1) {
                 modeloContactos.addElement(contacto.getNombre());
@@ -498,7 +517,7 @@ public class InterfazMensajeria extends JFrame implements InterfazVista {
                         );
                         Chat nuevoChat = new Chat(nuevoContacto);
                         usuario.agregarChat(nuevoChat);
-                        usuario.agregarContacto(nuevoContacto);
+                        notificarObservadores("NUEVO_CONTACTO", nuevoContacto);
                         modeloContactos.addElement(nombrePersonalizado.trim());
                         listaContactos.setSelectedValue(nombrePersonalizado.trim(), true);
                         areaTextoMensaje.requestFocusInWindow();

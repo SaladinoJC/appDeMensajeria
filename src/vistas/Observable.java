@@ -1,7 +1,8 @@
 package vistas;
+import mensajeria.Observer;
 
 public interface Observable {
-    void agregarObserver(Observer o);
-    void eliminarObserver(Observer o);
-    void notificarObservers(Object evento);
+    void agregarObservador(Observer o);
+    void eliminarObservador(Observer o);
+    void notificarObservadores(String tipo, Object dato);
 }
